@@ -211,17 +211,82 @@ button {
   position: relative;
   z-index: 2;
   display: grid;
-  place-items: end center;
+  grid-template-rows: auto 1fr auto;
+  place-items: center;
+  align-content: end;
+  gap: clamp(0.65rem, 1.8vh, 1.1rem);
   min-height: 0;
   padding: 0 clamp(1rem, 4vw, 2rem) clamp(0.5rem, 2vh, 1.5rem);
+}
+
+.timer {
+  text-align: center;
+  color: var(--mist);
+}
+
+.timer__remain {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(2rem, 7vw, 3.25rem);
+  letter-spacing: 0.12em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.3);
+}
+
+.timer__label {
+  margin-top: 0.4rem;
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-size: 0.72rem;
+  letter-spacing: 0.35em;
+  text-indent: 0.35em;
+  color: rgba(228, 214, 198, 0.55);
+}
+
+.altar[data-timer='done'] .timer__remain {
+  color: var(--holder-light);
+}
+
+.altar[data-timer='paused'] .timer__remain {
+  opacity: 0.72;
+}
+
+.durations {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.55rem 1rem;
+  max-width: 22rem;
+}
+
+.duration {
+  font-family: var(--font-display);
+  font-size: clamp(0.78rem, 2vw, 0.9rem);
+  letter-spacing: 0.18em;
+  text-indent: 0.18em;
+  color: rgba(232, 226, 216, 0.45);
+  padding: 0.2rem 0;
+  border-bottom: 1px solid transparent;
+  transition: color 0.25s ease, border-color 0.25s ease;
+}
+
+.duration:hover {
+  color: rgba(232, 226, 216, 0.85);
+}
+
+.duration.is-active {
+  color: var(--mist);
+  border-bottom-color: rgba(232, 226, 216, 0.45);
 }
 
 .scene {
   position: relative;
   width: min(100%, 360px);
   aspect-ratio: 3 / 4;
-  max-height: min(72dvh, 600px);
+  max-height: min(58dvh, 520px);
   touch-action: none;
+  place-self: end center;
 }
 
 .smoke-layer {
