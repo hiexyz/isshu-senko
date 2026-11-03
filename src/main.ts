@@ -2,11 +2,11 @@ import './style.css'
 import { BreathSensor } from './breath'
 import { playOrin, unlockAudio } from './orin'
 import { SmokeEngine } from './smoke/engine'
+import { bindWheels } from './wheels'
 
 const BURN_OUT_SEC = 0.35
 const MIN_SEC = 60
 const MAX_SEC = 60 * 60
-const STEP_SEC = 30
 const DURATION_KEY = 'isshu-duration-sec'
 const SOUND_KEY = 'isshu-sound-on'
 
@@ -25,14 +25,13 @@ function formatDurationLabel(sec: number): string {
   return `${m}分${r}秒`
 }
 
-function snapSec(n: number): number {
-  const snapped = Math.round(n / STEP_SEC) * STEP_SEC
-  return Math.min(MAX_SEC, Math.max(MIN_SEC, snapped))
+function clampDuration(n: number): number {
+  return Math.min(MAX_SEC, Math.max(MIN_SEC, Math.round(n)))
 }
 
 function loadDuration(): number {
   const n = Number(localStorage.getItem(DURATION_KEY) ?? 180)
-  return Number.isFinite(n) ? snapSec(n) : 180
+  return Number.isFinite(n) ? clampDuration(n) : 180
 }
 
 function loadSoundOn(): boolean {
@@ -92,21 +91,8 @@ function mount(): void {
       <footer class="copy">
         <h1>静かに、祈る。</h1>
         <p>線香が燃え尽きるまでを、ひとつの時間に。</p>
-        <div class="time-slider">
-          <label class="time-slider__label" for="duration-range">時間</label>
-          <input
-            id="duration-range"
-            class="time-slider__input"
-            type="range"
-            min="${MIN_SEC}"
-            max="${MAX_SEC}"
-            step="${STEP_SEC}"
-            value="${initialDuration}"
-            aria-valuetext="${formatDurationLabel(initialDuration)}"
-          />
-          <span class="time-slider__value" id="duration-label">${formatDurationLabel(initialDuration)}</span>
-        </div>
-        <p class="hint" id="hint">スライダーで時間を合わせ、点すとタイマーが始まります</p>
+        <div class="picker" id="time-picker" aria-label="時間設定"></div>
+        <p class="hint" id="hint">分・秒を回して時間を合わせ、点すと始まります</p>
       </footer>
 
       <div class="timer" aria-live="polite">
@@ -131,12 +117,9 @@ function mount(): void {
   const hint = app.querySelector<HTMLElement>('#hint')!
   const timerRemain = app.querySelector<HTMLElement>('#timer-remain')!
   const timerLabel = app.querySelector<HTMLElement>('#timer-label')!
-  const range = app.querySelector<HTMLInputElement>('#duration-range')!
-  const durationLabel = app.querySelector<HTMLElement>('#duration-label')!
+  const pickerRoot = app.querySelector<HTMLElement>('#time-picker')!
 
-  /** Configured full length */
   let durationSec = initialDuration
-  /** Absolute seconds left on the current stick */
   let leftSec = initialDuration
   let burnedOut = false
   let lastFrame = performance.now()
@@ -148,9 +131,8 @@ function mount(): void {
     const frac = burnedOut ? 0.04 : Math.max(fractionLeft(), 0.04)
     stick.style.setProperty('--remain', String(frac))
     const burned = 1 - Math.min(1, Math.max(0, fractionLeft()))
-    const ash = 3 + burned * 5
-    ashTip.style.width = `${ash}px`
-    ashTip.style.height = `${ash * 0.9}px`
+    ashTip.style.width = `${3 + burned * 5}px`
+    ashTip.style.height = `${(3 + burned * 5) * 0.9}px`
     stickChar.style.height = `${2 + burned * 6}px`
     stickChar.style.opacity = burned > 0.02 ? '1' : '0'
   }
@@ -174,17 +156,11 @@ function mount(): void {
     }
   }
 
-  const syncSliderUi = () => {
-    range.value = String(durationSec)
-    durationLabel.textContent = formatDurationLabel(durationSec)
-    range.setAttribute('aria-valuetext', formatDurationLabel(durationSec))
-  }
-
   const defaultHint = () => {
     if (breath.isActive()) {
       hint.textContent = 'マイクに向かって、そっと息を吹きかけてみてください'
     } else {
-      hint.textContent = 'スライダーで時間を合わせ、点すとタイマーが始まります'
+      hint.textContent = '分・秒を回して時間を合わせ、点すと始まります'
     }
   }
 
@@ -195,9 +171,7 @@ function mount(): void {
       /* ignore */
     }
     if (soundOn) {
-      void playOrin().catch((err) => {
-        console.warn('orin play failed', err)
-      })
+      void playOrin().catch((err) => console.warn('orin failed', err))
     }
   }
 
@@ -226,6 +200,19 @@ function mount(): void {
     updateTimerDisplay()
   }
 
+  const commitDuration = (sec: number) => {
+    durationSec = clampDuration(sec)
+    leftSec = durationSec
+    burnedOut = false
+    lastDisplayedSec = -1
+    localStorage.setItem(DURATION_KEY, String(durationSec))
+    applyStickLength()
+    updateTimerDisplay()
+    hint.textContent = engine.isLit()
+      ? `${formatDurationLabel(durationSec)}で計測中`
+      : `${formatDurationLabel(durationSec)}に設定しました。点すと始まります`
+  }
+
   const getOrigin = () => {
     const sceneRect = scene.getBoundingClientRect()
     const emberRect = ember.getBoundingClientRect()
@@ -249,9 +236,16 @@ function mount(): void {
     lit: true,
   })
 
+  const wheels = bindWheels({
+    root: pickerRoot,
+    minSec: MIN_SEC,
+    maxSec: MAX_SEC,
+    valueSec: initialDuration,
+    onChange: commitDuration,
+  })
+
   applyStickLength()
   updateTimerDisplay()
-  syncSliderUi()
 
   requestAnimationFrame(() => {
     engine.resize()
@@ -303,16 +297,16 @@ function mount(): void {
     } else if (!engine.isLit() && burnedOut) {
       hint.textContent = '時間が終わりました。点すと新しい線香で再開できます'
     } else {
-      hint.textContent = 'スライダーで時間を合わせ、点すとタイマーが始まります'
+      hint.textContent = '分・秒を回して時間を合わせ、点すと始まります'
     }
   }
 
-  // Unlock audio on first interaction anywhere useful
   const armAudio = () => {
-    void unlockAudio()
+    void unlockAudio().catch(() => undefined)
   }
-  ;[soundToggle, toggle, breathToggle, range].forEach((el) => {
-    el.addEventListener('pointerdown', armAudio, { once: false })
+  ;[soundToggle, toggle, breathToggle].forEach((el) => {
+    el.addEventListener('touchstart', armAudio, { passive: true })
+    el.addEventListener('pointerdown', armAudio)
   })
 
   breathToggle.addEventListener('click', async () => {
@@ -324,7 +318,6 @@ function mount(): void {
       setBreathUi(false)
       return
     }
-
     breathToggle.disabled = true
     try {
       await breath.start()
@@ -338,50 +331,22 @@ function mount(): void {
 
   soundToggle.addEventListener('click', async () => {
     const next = !soundOn
-    setSoundUi(next)
     if (next) {
       try {
+        await unlockAudio()
+        setSoundUi(true)
         await playOrin()
         hint.textContent = '終了時におりんが鳴ります'
       } catch {
-        hint.textContent = '音の再生に失敗しました。端末の消音を確認してください'
         setSoundUi(false)
+        hint.textContent =
+          '音を再生できませんでした。消音スイッチ／本体音量を確認してください'
       }
     } else {
+      setSoundUi(false)
       hint.textContent = '音をオフにしました'
     }
   })
-
-  const onRangeInput = () => {
-    const sec = snapSec(Number(range.value))
-    // Live label while dragging
-    durationLabel.textContent = formatDurationLabel(sec)
-    range.setAttribute('aria-valuetext', formatDurationLabel(sec))
-  }
-
-  const onRangeCommit = () => {
-    const sec = snapSec(Number(range.value))
-    // Changing the slider always prepares a fresh stick of that length
-    durationSec = sec
-    leftSec = sec
-    burnedOut = false
-    lastDisplayedSec = -1
-    localStorage.setItem(DURATION_KEY, String(durationSec))
-    syncSliderUi()
-    applyStickLength()
-    updateTimerDisplay()
-    if (engine.isLit()) {
-      hint.textContent = `${formatDurationLabel(sec)}で計測中`
-    } else {
-      hint.textContent = `${formatDurationLabel(sec)}に設定しました。点すと始まります`
-    }
-  }
-
-  range.addEventListener('input', onRangeInput)
-  range.addEventListener('change', onRangeCommit)
-  // Some mobile browsers only fire input while dragging
-  range.addEventListener('pointerup', onRangeCommit)
-  range.addEventListener('touchend', onRangeCommit)
 
   const tick = (now: number) => {
     const dt = Math.min(0.05, (now - lastFrame) / 1000)
@@ -436,11 +401,11 @@ function mount(): void {
       setLitUi(false)
       return
     }
-
     if (burnedOut || leftSec <= BURN_OUT_SEC) {
       burnedOut = false
       leftSec = durationSec
       lastDisplayedSec = -1
+      wheels.setValue(durationSec)
       applyStickLength()
     }
     setLitUi(true)
