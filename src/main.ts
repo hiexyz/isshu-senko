@@ -1,5 +1,6 @@
 import './style.css'
 import { BreathSensor } from './breath'
+import { dictionaries, loadLang, saveLang, type Dict, type Lang } from './i18n'
 import { playOrin, unlockAudio } from './orin'
 import { SmokeEngine } from './smoke/engine'
 import { bindWheels } from './wheels'
@@ -18,14 +19,6 @@ function formatTime(totalSec: number): string {
   return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`
 }
 
-function formatDurationLabel(sec: number): string {
-  const s = Math.max(0, Math.round(sec))
-  const m = Math.floor(s / 60)
-  const r = s % 60
-  if (r === 0) return `${m}分`
-  return `${m}分${r}秒`
-}
-
 function clampDuration(n: number): number {
   return Math.min(MAX_SEC, Math.max(MIN_SEC, Math.round(n)))
 }
@@ -37,7 +30,7 @@ function loadDuration(): number {
 
 function loadSoundOn(): boolean {
   const raw = localStorage.getItem(SOUND_KEY)
-  return raw === null ? true : raw === '1'
+  return raw === null ? false : raw === '1'
 }
 
 function mount(): void {
@@ -46,25 +39,28 @@ function mount(): void {
 
   const initialDuration = loadDuration()
   let soundOn = loadSoundOn()
+  let lang: Lang = loadLang()
+  let t: Dict = dictionaries[lang]
 
   app.innerHTML = `
-    <main class="altar" data-lit="true" data-breath="off" data-sound="${soundOn ? 'on' : 'off'}">
+    <main class="altar" data-lit="true" data-breath="off" data-sound="${soundOn ? 'on' : 'off'}" data-lang="${lang}">
       <div class="altar__grain" aria-hidden="true"></div>
       <div class="altar__glow" aria-hidden="true"></div>
 
       <header class="topbar">
         <div class="brand">
           <div class="brand__mark">一炷</div>
-          <div class="brand__ruby">いっしゅ</div>
+          <div class="brand__ruby" id="brand-ruby">${t.ruby}</div>
         </div>
         <div class="actions">
-          <button type="button" class="toggle" id="sound-toggle" aria-pressed="${soundOn}">${soundOn ? '音オン' : '音オフ'}</button>
-          <button type="button" class="toggle" id="breath-toggle" aria-pressed="false">息を聴く</button>
-          <button type="button" class="toggle" id="lit-toggle" aria-pressed="true">消す</button>
+          <button type="button" class="toggle" id="lang-toggle">${t.langSwitch}</button>
+          <button type="button" class="toggle" id="sound-toggle" aria-pressed="${soundOn}">${soundOn ? t.soundOn : t.soundOff}</button>
+          <button type="button" class="toggle" id="breath-toggle" aria-pressed="false">${t.breathOff}</button>
+          <button type="button" class="toggle" id="lit-toggle" aria-pressed="true">${t.extinguish}</button>
         </div>
       </header>
 
-      <section class="stage" aria-label="線香タイマー">
+      <section class="stage" id="stage" aria-label="${t.stageLabel}">
         <div class="scene" id="scene">
           <canvas class="smoke-layer" id="smoke" aria-hidden="true"></canvas>
           <div class="scene__art" aria-hidden="true">
@@ -90,20 +86,21 @@ function mount(): void {
       </section>
 
       <footer class="copy">
-        <h1>静かに、祈る。</h1>
-        <p>線香が燃え尽きるまでを、ひとつの時間に。</p>
-        <div class="picker" id="time-picker" aria-label="時間設定"></div>
-        <p class="hint" id="hint">分・秒を回して時間を合わせ、点すと始まります</p>
+        <h1 id="copy-title">${t.title}</h1>
+        <p id="copy-body">${t.body}</p>
+        <div class="picker" id="time-picker" aria-label="${t.timerSet}"></div>
+        <p class="hint" id="hint">${t.hintDefault}</p>
       </footer>
 
       <div class="timer" aria-live="polite">
-        <span class="timer__label" id="timer-label">残り</span>
+        <span class="timer__label" id="timer-label">${t.timerLeft}</span>
         <span class="timer__remain" id="timer-remain">${formatTime(initialDuration)}</span>
       </div>
     </main>
   `
 
   const altar = app.querySelector<HTMLElement>('.altar')!
+  const stage = app.querySelector<HTMLElement>('#stage')!
   const scene = app.querySelector<HTMLElement>('#scene')!
   const canvas = app.querySelector<HTMLCanvasElement>('#smoke')!
   const stick = app.querySelector<HTMLElement>('#stick')!
@@ -113,6 +110,10 @@ function mount(): void {
   const toggle = app.querySelector<HTMLButtonElement>('#lit-toggle')!
   const breathToggle = app.querySelector<HTMLButtonElement>('#breath-toggle')!
   const soundToggle = app.querySelector<HTMLButtonElement>('#sound-toggle')!
+  const langToggle = app.querySelector<HTMLButtonElement>('#lang-toggle')!
+  const brandRuby = app.querySelector<HTMLElement>('#brand-ruby')!
+  const copyTitle = app.querySelector<HTMLElement>('#copy-title')!
+  const copyBody = app.querySelector<HTMLElement>('#copy-body')!
   const breathMeter = app.querySelector<HTMLElement>('#breath-meter')!
   const breathFill = app.querySelector<HTMLElement>('#breath-fill')!
   const hint = app.querySelector<HTMLElement>('#hint')!
@@ -146,22 +147,22 @@ function mount(): void {
       timerRemain.textContent = formatTime(shown)
     }
     if (burnedOut) {
-      timerLabel.textContent = '完了'
+      timerLabel.textContent = t.timerDone
       altar.dataset.timer = 'done'
     } else if (engine.isLit()) {
-      timerLabel.textContent = '残り'
+      timerLabel.textContent = t.timerLeft
       altar.dataset.timer = 'running'
     } else {
-      timerLabel.textContent = leftSec < durationSec - 0.2 ? '一時停止' : '設定'
+      timerLabel.textContent = leftSec < durationSec - 0.2 ? t.timerPaused : t.timerSet
       altar.dataset.timer = leftSec < durationSec - 0.2 ? 'paused' : 'idle'
     }
   }
 
   const defaultHint = () => {
     if (breath.isActive()) {
-      hint.textContent = 'マイクに向かって、そっと息を吹きかけてみてください'
+      hint.textContent = t.hintBreath
     } else {
-      hint.textContent = '分・秒を回して時間を合わせ、点すと始まります'
+      hint.textContent = t.hintDefault
     }
   }
 
@@ -181,20 +182,18 @@ function mount(): void {
     localStorage.setItem(SOUND_KEY, on ? '1' : '0')
     altar.dataset.sound = on ? 'on' : 'off'
     soundToggle.setAttribute('aria-pressed', String(on))
-    soundToggle.textContent = on ? '音オン' : '音オフ'
+    soundToggle.textContent = on ? t.soundOn : t.soundOff
   }
 
   const setLitUi = (lit: boolean) => {
     engine.setLit(lit)
     altar.dataset.lit = String(lit)
     toggle.setAttribute('aria-pressed', String(lit))
-    toggle.textContent = lit ? '消す' : '点す'
+    toggle.textContent = lit ? t.extinguish : t.light
     if (!lit && burnedOut) {
-      hint.textContent = soundOn
-        ? 'おりんが響きました。点すと新しい線香で再開できます'
-        : '時間が終わりました。点すと新しい線香で再開できます'
+      hint.textContent = soundOn ? t.hintDoneSound : t.hintDoneSilent
     } else if (!lit) {
-      hint.textContent = '一時停止中。点すと続きから計測します'
+      hint.textContent = t.hintPaused
     } else {
       defaultHint()
     }
@@ -209,9 +208,8 @@ function mount(): void {
     localStorage.setItem(DURATION_KEY, String(durationSec))
     applyStickLength()
     updateTimerDisplay()
-    hint.textContent = engine.isLit()
-      ? `${formatDurationLabel(durationSec)}で計測中`
-      : `${formatDurationLabel(durationSec)}に設定しました。点すと始まります`
+    const label = t.durationLabel(durationSec)
+    hint.textContent = engine.isLit() ? t.hintRunning(label) : t.hintSet(label)
   }
 
   const getOrigin = () => {
@@ -242,11 +240,48 @@ function mount(): void {
     minSec: MIN_SEC,
     maxSec: MAX_SEC,
     valueSec: initialDuration,
+    unitMin: t.unitMin,
+    unitSec: t.unitSec,
     onChange: commitDuration,
   })
 
+  const applyLang = (next: Lang) => {
+    lang = next
+    t = dictionaries[lang]
+    saveLang(lang)
+    document.documentElement.lang = lang
+    document.title = t.docTitle
+    altar.dataset.lang = lang
+    brandRuby.textContent = t.ruby
+    langToggle.textContent = t.langSwitch
+    soundToggle.textContent = soundOn ? t.soundOn : t.soundOff
+    breathToggle.textContent = breath.isActive() ? t.breathOn : t.breathOff
+    toggle.textContent = engine.isLit() ? t.extinguish : t.light
+    stage.setAttribute('aria-label', t.stageLabel)
+    copyTitle.textContent = t.title
+    copyBody.textContent = t.body
+    pickerRoot.setAttribute('aria-label', t.timerSet)
+    wheels.setUnits(t.unitMin, t.unitSec)
+    lastDisplayedSec = -1
+    updateTimerDisplay()
+
+    if (breath.isActive()) {
+      hint.textContent = t.hintBreath
+    } else if (!engine.isLit() && burnedOut) {
+      hint.textContent = soundOn ? t.hintDoneSound : t.hintDoneSilent
+    } else if (!engine.isLit() && leftSec < durationSec - 0.2) {
+      hint.textContent = t.hintPaused
+    } else if (engine.isLit()) {
+      hint.textContent = t.hintRunning(t.durationLabel(durationSec))
+    } else {
+      hint.textContent = t.hintDefault
+    }
+  }
+
   applyStickLength()
   updateTimerDisplay()
+  document.documentElement.lang = lang
+  document.title = t.docTitle
 
   requestAnimationFrame(() => {
     engine.resize()
@@ -289,25 +324,29 @@ function mount(): void {
   const setBreathUi = (on: boolean, error?: string) => {
     altar.dataset.breath = on ? 'on' : 'off'
     breathToggle.setAttribute('aria-pressed', String(on))
-    breathToggle.textContent = on ? '息を止める' : '息を聴く'
+    breathToggle.textContent = on ? t.breathOn : t.breathOff
     breathMeter.hidden = !on
     if (error) {
       hint.textContent = error
     } else if (on) {
-      hint.textContent = 'マイクに向かって、そっと息を吹きかけてみてください'
+      hint.textContent = t.hintBreath
     } else if (!engine.isLit() && burnedOut) {
-      hint.textContent = '時間が終わりました。点すと新しい線香で再開できます'
+      hint.textContent = t.hintDoneSimple
     } else {
-      hint.textContent = '分・秒を回して時間を合わせ、点すと始まります'
+      hint.textContent = t.hintDefault
     }
   }
 
   const armAudio = () => {
     void unlockAudio().catch(() => undefined)
   }
-  ;[soundToggle, toggle, breathToggle].forEach((el) => {
+  ;[soundToggle, toggle, breathToggle, langToggle].forEach((el) => {
     el.addEventListener('touchstart', armAudio, { passive: true })
     el.addEventListener('pointerdown', armAudio)
+  })
+
+  langToggle.addEventListener('click', () => {
+    applyLang(lang === 'ja' ? 'en' : 'ja')
   })
 
   breathToggle.addEventListener('click', async () => {
@@ -324,7 +363,7 @@ function mount(): void {
       await breath.start()
       setBreathUi(true)
     } catch {
-      setBreathUi(false, 'マイクを許可すると、息で煙を揺らせます')
+      setBreathUi(false, t.hintMicFail)
     } finally {
       breathToggle.disabled = false
     }
@@ -337,15 +376,14 @@ function mount(): void {
         await unlockAudio()
         setSoundUi(true)
         await playOrin()
-        hint.textContent = '終了時におりんが鳴ります'
+        hint.textContent = t.hintSoundReady
       } catch {
         setSoundUi(false)
-        hint.textContent =
-          '音を再生できませんでした。消音スイッチ／本体音量を確認してください'
+        hint.textContent = t.hintSoundFail
       }
     } else {
       setSoundUi(false)
-      hint.textContent = '音をオフにしました'
+      hint.textContent = t.hintSoundOff
     }
   })
 
@@ -369,13 +407,13 @@ function mount(): void {
 
     windStrength += (targetStrength - windStrength) * 0.08
     const origin = getOrigin()
-    const t = now / 1000
-    const ambientX = hasPointer ? windX : origin.x + Math.sin(t * 0.18) * 12
+    const nowSec = now / 1000
+    const ambientX = hasPointer ? windX : origin.x + Math.sin(nowSec * 0.18) * 12
 
     const sample = breath.sample()
     if (sample.active) {
       if (!hasPointer && sample.blowing) {
-        breathDir = Math.sin(t * 0.7) >= 0 ? 1 : -1
+        breathDir = Math.sin(nowSec * 0.7) >= 0 ? 1 : -1
       }
       const gust = Math.min(1, sample.level * 1.25)
       engine.setBreath(engine.isLit() ? gust : 0, breathDir)
@@ -388,7 +426,7 @@ function mount(): void {
       engine.setWind(
         ambientX,
         origin.y - 100,
-        engine.isLit() ? Math.max(windStrength, 0.06 + Math.sin(t * 0.3) * 0.03) : 0,
+        engine.isLit() ? Math.max(windStrength, 0.06 + Math.sin(nowSec * 0.3) * 0.03) : 0,
       )
     }
 

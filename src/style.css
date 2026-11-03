@@ -181,6 +181,20 @@ button {
   border-color: rgba(228, 214, 198, 0.55);
 }
 
+.altar[data-lang='en'] .toggle {
+  letter-spacing: 0.08em;
+  text-indent: 0.08em;
+}
+
+.altar[data-lang='en'] .brand__ruby {
+  letter-spacing: 0.22em;
+  text-indent: 0.22em;
+}
+
+.altar[data-lang='en'] .hint {
+  letter-spacing: 0.06em;
+}
+
 .breath-meter {
   position: absolute;
   left: 12%;

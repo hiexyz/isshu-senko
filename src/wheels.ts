@@ -6,6 +6,8 @@ export type WheelsOptions = {
   maxSec: number
   valueSec: number
   onChange: (sec: number) => void
+  unitMin?: string
+  unitSec?: string
 }
 
 const ITEM_H = 36
@@ -82,6 +84,7 @@ function renderColumn(col: Column): void {
 export function bindWheels(options: WheelsOptions): {
   setValue: (sec: number) => void
   getValue: () => number
+  setUnits: (unitMin: string, unitSec: string) => void
 } {
   const { root, minSec, maxSec, onChange } = options
   root.innerHTML = ''
@@ -100,10 +103,10 @@ export function bindWheels(options: WheelsOptions): {
 
   const unitMin = document.createElement('div')
   unitMin.className = 'wheels__unit'
-  unitMin.textContent = '分'
+  unitMin.textContent = options.unitMin ?? '分'
   const unitSec = document.createElement('div')
   unitSec.className = 'wheels__unit'
-  unitSec.textContent = '秒'
+  unitSec.textContent = options.unitSec ?? '秒'
 
   const frame = document.createElement('div')
   frame.className = 'wheels__frame'
@@ -288,5 +291,9 @@ export function bindWheels(options: WheelsOptions): {
   return {
     setValue: (sec: number) => applyTotal(sec, false),
     getValue: () => value,
+    setUnits: (minLabel: string, secLabel: string) => {
+      unitMin.textContent = minLabel
+      unitSec.textContent = secLabel
+    },
   }
 }
