@@ -6,7 +6,8 @@
 
 ## 公開URL
 
-https://hiexyz.github.io/isshu-senko/
+- GitHub Pages: https://hiexyz.github.io/isshu-senko/
+- デプロイナウ: https://isshu-senko-timer.lolipop-now.app
 
 ## 機能
 
@@ -26,18 +27,45 @@ npm install
 npm run dev
 ```
 
+## ロリポップ！デプロイナウ
+
+Vite のソースをそのまま静的公開すると動きません（`index.html` が `/src/main.ts` を参照するため）。**ビルドして `dist` を公開**してください。
+
+### 推奨設定
+
+| 項目 | 値 |
+| --- | --- |
+| フレームワーク | 静的サイト (`static`) |
+| インストール | `npm install` |
+| ビルド | `npm run build` |
+| 出力ディレクトリ | `dist` |
+
+CLI の例:
+
+```bash
+npm install -g lolipop
+lolipop login
+lolipop deploy --name isshu-senko-timer --framework static --install "npm install" --build "npm run build" --output dist
+```
+
+すでにプロジェクトがある場合は、ダッシュボードのビルド設定を上の表どおりに直し、もう一度デプロイしてください。
+
+```bash
+lolipop build-config update --project <project-id> --framework static --install "npm install" --build "npm run build" --output dist
+lolipop deploy --project <project-id>
+```
+
+ブラウザからフォルダをドロップする場合は、リポジトリ直下ではなく **`npm run build` 後の `dist` フォルダ**を上げるか、ビルド付きの静的サイト設定にしてください。
+
 ## 技術
 
 - Vite + TypeScript
 - Canvas 2D の煙シミュレーション（FBM / curl noise）
 - Web Audio によるおりん、BreathSensor によるマイク入力
-- GitHub Pages で公開
 
-## ビルド / デプロイ
+## ビルド / GitHub Pages
 
 ```bash
-npm run build
-npm run preview
-# dist を Pages へ
-npx gh-pages -d dist
+npm run build          # ルート公開（デプロイナウ向け）
+npm run deploy:gh      # GitHub Pages（base: /isshu-senko/）
 ```

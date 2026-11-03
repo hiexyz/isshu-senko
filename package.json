@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "build:gh": "tsc && BASE_PATH=/isshu-senko/ vite build",
+    "preview": "vite preview",
+    "deploy:gh": "npm run build:gh && npx --yes gh-pages -d dist"
   },
   "devDependencies": {
     "typescript": "~7.0.2",

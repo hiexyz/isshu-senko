@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 
-// GitHub Pages: https://hiexyz.github.io/isshu-senko/
+// Lolipop Now / local: /
+// GitHub Pages: BASE_PATH=/isshu-senko/ npm run build
 export default defineConfig({
-  base: '/isshu-senko/',
+  base: process.env.BASE_PATH || '/',
 })
