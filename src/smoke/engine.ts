@@ -50,7 +50,7 @@ export class SmokeEngine {
     if (!ctx) throw new Error('2D canvas unavailable')
     this.ctx = ctx
     this.getOrigin = options.getOrigin
-    this.spawnRate = options.spawnRate ?? 38
+    this.spawnRate = options.spawnRate ?? 28
     this.lit = options.lit ?? true
   }
 
@@ -101,15 +101,15 @@ export class SmokeEngine {
   private spawn(count: number): void {
     const origin = this.getOrigin()
     for (let i = 0; i < count; i++) {
-      const maxLife = 3.2 + Math.random() * 2.8
+      const maxLife = 3.8 + Math.random() * 3.2
       this.particles.push({
-        x: origin.x + (Math.random() - 0.5) * 1.6,
-        y: origin.y + (Math.random() - 0.5) * 1.2,
-        vx: (Math.random() - 0.5) * 4,
-        vy: -(18 + Math.random() * 14),
+        x: origin.x + (Math.random() - 0.5) * 1.1,
+        y: origin.y + (Math.random() - 0.5) * 0.8,
+        vx: (Math.random() - 0.5) * 2.2,
+        vy: -(22 + Math.random() * 16),
         life: 0,
         maxLife,
-        size: 1.2 + Math.random() * 1.8,
+        size: 0.7 + Math.random() * 1.1,
         seed: Math.random() * 1000,
         phase: Math.random() * Math.PI * 2,
       })
@@ -177,7 +177,7 @@ export class SmokeEngine {
 
       p.x += p.vx * dt
       p.y += p.vy * dt
-      p.size += (0.9 + age * 2.2) * dt
+      p.size += (0.55 + age * 1.6) * dt
 
       if (p.y > -40 && p.x > -80 && p.x < this.width + 80) {
         next.push(p)
@@ -204,13 +204,13 @@ export class SmokeEngine {
             ? Math.pow(1 - (age - 0.55) / 0.45, 1.6)
             : 1
 
-      const alpha = envelope * (0.1 + (1 - age) * 0.18)
+      const alpha = envelope * (0.08 + (1 - age) * 0.16)
       if (alpha < 0.01) continue
 
-      const r = p.size * (0.7 + age * 1.8)
+      const r = p.size * (0.55 + age * 1.35)
       const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r)
-      gradient.addColorStop(0, `rgba(245, 242, 235, ${alpha})`)
-      gradient.addColorStop(0.35, `rgba(220, 218, 210, ${alpha * 0.45})`)
+      gradient.addColorStop(0, `rgba(248, 245, 238, ${alpha})`)
+      gradient.addColorStop(0.28, `rgba(228, 224, 216, ${alpha * 0.4})`)
       gradient.addColorStop(1, 'rgba(200, 198, 190, 0)')
 
       ctx.beginPath()

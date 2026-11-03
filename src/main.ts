@@ -2,36 +2,35 @@ import './style.css'
 import { SmokeEngine } from './smoke/engine'
 
 const BUDDHA_SVG = `
-<svg viewBox="0 0 120 150" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+<svg viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
   <defs>
-    <linearGradient id="glaze" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#d5e4df"/>
-      <stop offset="45%" stop-color="#9bb8b0"/>
-      <stop offset="100%" stop-color="#6f9188"/>
+    <linearGradient id="glaze" x1="0.15" y1="0" x2="0.9" y2="1">
+      <stop offset="0%" stop-color="#e4f0ec"/>
+      <stop offset="40%" stop-color="#a8c4bc"/>
+      <stop offset="100%" stop-color="#6d9188"/>
     </linearGradient>
-    <linearGradient id="glaze-deep" x1="0.2" y1="0" x2="0.8" y2="1">
-      <stop offset="0%" stop-color="#b7ccc6"/>
-      <stop offset="100%" stop-color="#5f847b"/>
+    <linearGradient id="glaze-side" x1="0" y1="0.2" x2="1" y2="0.9">
+      <stop offset="0%" stop-color="#c5d9d2"/>
+      <stop offset="100%" stop-color="#587a72"/>
     </linearGradient>
   </defs>
-  <!-- lotus base -->
-  <ellipse cx="60" cy="138" rx="38" ry="8" fill="url(#glaze-deep)" opacity="0.85"/>
-  <path d="M28 128c8 10 24 14 32 14s24-4 32-14c-10 4-22 6-32 6s-22-2-32-6z" fill="url(#glaze)"/>
-  <!-- robe / body -->
-  <path d="M36 78c2 28 10 42 24 48 14-6 22-20 24-48-8 6-16 9-24 9s-16-3-24-9z" fill="url(#glaze)"/>
-  <path d="M40 76c6 10 14 14 20 14s14-4 20-14c-6 3-13 5-20 5s-14-2-20-5z" fill="url(#glaze-deep)" opacity="0.55"/>
-  <!-- arms in anjali mudra -->
-  <path d="M48 86c-2 8 2 16 8 20 2-8 4-14 4-20-4 2-8 2-12 0z" fill="url(#glaze)"/>
-  <path d="M72 86c2 8-2 16-8 20-2-8-4-14-4-20 4 2 8 2 12 0z" fill="url(#glaze)"/>
-  <ellipse cx="60" cy="98" rx="7" ry="5" fill="url(#glaze-deep)"/>
-  <!-- head -->
-  <circle cx="60" cy="52" r="22" fill="url(#glaze)"/>
-  <ellipse cx="60" cy="34" rx="10" ry="7" fill="url(#glaze-deep)"/>
-  <circle cx="60" cy="28" r="4" fill="url(#glaze)"/>
-  <!-- calm face suggestion -->
-  <path d="M52 54c2 4 6 6 8 6s6-2 8-6" fill="none" stroke="#6a8780" stroke-width="1.2" stroke-linecap="round" opacity="0.55"/>
-  <circle cx="53" cy="50" r="1.2" fill="#6a8780" opacity="0.45"/>
-  <circle cx="67" cy="50" r="1.2" fill="#6a8780" opacity="0.45"/>
+  <ellipse cx="50" cy="128" rx="34" ry="7" fill="url(#glaze-side)" opacity="0.9"/>
+  <path d="M22 118c10 12 20 16 28 16s18-4 28-16c-9 5-19 8-28 8s-19-3-28-8z" fill="url(#glaze)"/>
+  <path d="M18 108c8 8 18 14 32 14s24-6 32-14c-12 8-22 10-32 10s-20-2-32-10z" fill="url(#glaze-side)"/>
+  <ellipse cx="32" cy="108" rx="14" ry="7" fill="url(#glaze)"/>
+  <ellipse cx="68" cy="108" rx="14" ry="7" fill="url(#glaze)"/>
+  <path d="M34 70c1 22 7 34 16 40 9-6 15-18 16-40-5 5-11 8-16 8s-11-3-16-8z" fill="url(#glaze)"/>
+  <path d="M42 78c-1 10 3 18 8 22v-22c-3 1-6 1-8 0z" fill="url(#glaze-side)"/>
+  <path d="M58 78c1 10-3 18-8 22v-22c3 1 6 1 8 0z" fill="url(#glaze-side)"/>
+  <ellipse cx="50" cy="92" rx="5.5" ry="4" fill="#8aa9a0"/>
+  <circle cx="50" cy="48" r="20" fill="url(#glaze)"/>
+  <ellipse cx="50" cy="32" rx="9" ry="6" fill="url(#glaze-side)"/>
+  <circle cx="50" cy="26" r="3.5" fill="url(#glaze)"/>
+  <ellipse cx="30" cy="50" rx="3.5" ry="6" fill="url(#glaze-side)"/>
+  <ellipse cx="70" cy="50" rx="3.5" ry="6" fill="url(#glaze-side)"/>
+  <circle cx="43" cy="47" r="1.1" fill="#5f7f76" opacity="0.5"/>
+  <circle cx="57" cy="47" r="1.1" fill="#5f7f76" opacity="0.5"/>
+  <path d="M44 55c2 3.5 5 5 6 5s4-1.5 6-5" fill="none" stroke="#5f7f76" stroke-width="1.1" stroke-linecap="round" opacity="0.45"/>
 </svg>
 `
 
@@ -102,7 +101,7 @@ function mount(): void {
   const engine = new SmokeEngine({
     canvas,
     getOrigin,
-    spawnRate: 42,
+    spawnRate: 30,
     lit: true,
   })
 

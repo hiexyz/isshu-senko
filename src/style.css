@@ -272,18 +272,20 @@ button {
 
 .rock {
   position: absolute;
-  left: 34%;
+  left: 33%;
   bottom: 22%;
-  width: 18%;
-  height: 14%;
+  width: 20%;
+  height: 16%;
   background:
-    radial-gradient(circle at 35% 30%, #8a6a52, transparent 45%),
-    radial-gradient(circle at 70% 60%, #5a4030, #3d2c22 70%);
-  border-radius: 42% 48% 40% 45% / 50% 42% 48% 45%;
+    radial-gradient(circle at 28% 22%, rgba(140, 110, 85, 0.9), transparent 28%),
+    radial-gradient(circle at 62% 38%, rgba(90, 65, 48, 0.7), transparent 22%),
+    radial-gradient(circle at 48% 70%, #6a4e3a, #3a291e 72%);
+  border-radius: 48% 42% 50% 40% / 45% 52% 40% 55%;
   box-shadow:
     0 8px 14px rgba(0, 0, 0, 0.35),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-  filter: contrast(1.05);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    inset -4px -6px 10px rgba(0, 0, 0, 0.25);
+  filter: contrast(1.08);
 }
 
 .rock::before,
@@ -291,20 +293,25 @@ button {
   content: '';
   position: absolute;
   border-radius: 50%;
-  background: rgba(20, 12, 8, 0.35);
+  background: rgba(18, 10, 6, 0.42);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.08);
 }
 
 .rock::before {
-  width: 18%;
-  height: 16%;
-  left: 22%;
-  top: 28%;
+  width: 22%;
+  height: 20%;
+  left: 18%;
+  top: 24%;
 }
 .rock::after {
-  width: 14%;
-  height: 12%;
-  right: 24%;
-  top: 42%;
+  width: 16%;
+  height: 14%;
+  right: 20%;
+  top: 40%;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.08),
+    18px 10px 0 -2px rgba(18, 10, 6, 0.35),
+    -8px 16px 0 -3px rgba(18, 10, 6, 0.3);
 }
 
 .stick {
@@ -388,10 +395,10 @@ button {
 
 .buddha {
   position: absolute;
-  right: 22%;
-  bottom: 23%;
-  width: 22%;
-  height: 26%;
+  right: 18%;
+  bottom: 22.5%;
+  width: 28%;
+  height: 34%;
   z-index: 3;
 }
 
