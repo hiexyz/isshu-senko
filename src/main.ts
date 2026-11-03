@@ -5,7 +5,8 @@ import { SmokeEngine } from './smoke/engine'
 import { bindWheels } from './wheels'
 
 const BURN_OUT_SEC = 0.35
-const MIN_SEC = 60
+/** Allow short timers (e.g. 10 seconds) for testing / brief sits */
+const MIN_SEC = 5
 const MAX_SEC = 60 * 60
 const DURATION_KEY = 'isshu-duration-sec'
 const SOUND_KEY = 'isshu-sound-on'

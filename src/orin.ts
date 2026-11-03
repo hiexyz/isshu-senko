@@ -45,7 +45,7 @@ function audioBufferToWav(buffer: AudioBuffer): Blob {
 /** Small temple rin: bright, shimmering, slightly inharmonic. */
 async function renderOrinBuffer(): Promise<AudioBuffer> {
   const sampleRate = 44100
-  const duration = 4.2
+  const duration = 7.5
   const length = Math.floor(sampleRate * duration)
   const OfflineCtx =
     window.OfflineAudioContext ||
@@ -58,19 +58,19 @@ async function renderOrinBuffer(): Promise<AudioBuffer> {
   master.gain.value = 0.9
   master.connect(offline.destination)
 
-  // High small-orin body (~D6–F6 region) with beating detune for metal shimmer
+  // High small-orin body with long metallic tail
   const f0 = 1680
 
-  // Bowl-like inharmonic partial set (not integer harmonics)
+  // Bowl-like inharmonic partials — longer decays for lingering チーン
   const partials: Array<{ ratio: number; amp: number; decay: number; beat: number }> = [
-    { ratio: 1.0, amp: 0.42, decay: 3.8, beat: 0.7 },
-    { ratio: 1.0, amp: 0.28, decay: 3.6, beat: -0.9 }, // detuned pair
-    { ratio: 2.76, amp: 0.26, decay: 2.9, beat: 1.1 },
-    { ratio: 4.54, amp: 0.16, decay: 2.2, beat: -0.6 },
-    { ratio: 6.27, amp: 0.11, decay: 1.6, beat: 0.8 },
-    { ratio: 8.12, amp: 0.07, decay: 1.15, beat: -1.2 },
-    { ratio: 10.4, amp: 0.045, decay: 0.85, beat: 0.5 },
-    { ratio: 13.1, amp: 0.028, decay: 0.55, beat: -0.7 },
+    { ratio: 1.0, amp: 0.4, decay: 6.8, beat: 0.55 },
+    { ratio: 1.0, amp: 0.26, decay: 6.5, beat: -0.75 }, // detuned pair / shimmer
+    { ratio: 2.76, amp: 0.24, decay: 5.4, beat: 0.9 },
+    { ratio: 4.54, amp: 0.15, decay: 4.2, beat: -0.5 },
+    { ratio: 6.27, amp: 0.1, decay: 3.2, beat: 0.65 },
+    { ratio: 8.12, amp: 0.065, decay: 2.4, beat: -0.95 },
+    { ratio: 10.4, amp: 0.04, decay: 1.7, beat: 0.4 },
+    { ratio: 13.1, amp: 0.025, decay: 1.15, beat: -0.55 },
   ]
 
   for (const p of partials) {
@@ -89,8 +89,9 @@ async function renderOrinBuffer(): Promise<AudioBuffer> {
 
     gain.gain.setValueAtTime(0.00001, t0)
     gain.gain.linearRampToValueAtTime(p.amp, t0 + 0.008)
-    // Fast early drop then long tail (metal)
-    gain.gain.linearRampToValueAtTime(p.amp * 0.55, t0 + 0.12)
+    // Gentle early drop, then very long metallic tail
+    gain.gain.linearRampToValueAtTime(p.amp * 0.62, t0 + 0.18)
+    gain.gain.linearRampToValueAtTime(p.amp * 0.28, t0 + p.decay * 0.45)
     gain.gain.exponentialRampToValueAtTime(0.00001, t0 + p.decay)
 
     osc.connect(filter)
