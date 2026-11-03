@@ -1,13 +1,11 @@
 import './style.css'
 import { BreathSensor } from './breath'
-import { bindDial } from './dial'
-import { playOrin } from './orin'
+import { playOrin, unlockAudio } from './orin'
 import { SmokeEngine } from './smoke/engine'
 
-const BURN_OUT = 0.06
+const BURN_OUT_SEC = 0.35
 const MIN_SEC = 60
 const MAX_SEC = 60 * 60
-/** 30-second steps for fine dial control */
 const STEP_SEC = 30
 const DURATION_KEY = 'isshu-duration-sec'
 const SOUND_KEY = 'isshu-sound-on'
@@ -23,16 +21,18 @@ function formatDurationLabel(sec: number): string {
   const s = Math.max(0, Math.round(sec))
   const m = Math.floor(s / 60)
   const r = s % 60
-  if (m === 0) return `${r}秒`
   if (r === 0) return `${m}分`
   return `${m}分${r}秒`
 }
 
-function loadDuration(): number {
-  const n = Number(localStorage.getItem(DURATION_KEY) ?? 180)
-  if (!Number.isFinite(n)) return 180
+function snapSec(n: number): number {
   const snapped = Math.round(n / STEP_SEC) * STEP_SEC
   return Math.min(MAX_SEC, Math.max(MIN_SEC, snapped))
+}
+
+function loadDuration(): number {
+  const n = Number(localStorage.getItem(DURATION_KEY) ?? 180)
+  return Number.isFinite(n) ? snapSec(n) : 180
 }
 
 function loadSoundOn(): boolean {
@@ -87,44 +87,26 @@ function mount(): void {
             <div class="breath-meter__fill" id="breath-fill"></div>
           </div>
         </div>
-
-        <div class="dial-wrap">
-          <div
-            class="dial"
-            id="dial"
-            role="slider"
-            aria-label="燃焼時間"
-            aria-valuemin="${MIN_SEC}"
-            aria-valuemax="${MAX_SEC}"
-            aria-valuenow="${initialDuration}"
-            aria-valuetext="${formatDurationLabel(initialDuration)}"
-          >
-            <svg class="dial__svg" viewBox="0 0 120 120" aria-hidden="true">
-              <circle class="dial__track" cx="60" cy="60" r="48" />
-              <circle
-                class="dial__arc"
-                cx="60"
-                cy="60"
-                r="48"
-                pathLength="100"
-              />
-              <g class="dial__knob">
-                <line x1="60" y1="60" x2="60" y2="18" />
-                <circle cx="60" cy="16" r="5" />
-              </g>
-            </svg>
-            <div class="dial__readout">
-              <span class="dial__value" id="dial-value">${formatDurationLabel(initialDuration)}</span>
-              <span class="dial__caption">まわして設定</span>
-            </div>
-          </div>
-        </div>
       </section>
 
       <footer class="copy">
         <h1>静かに、祈る。</h1>
         <p>線香が燃え尽きるまでを、ひとつの時間に。</p>
-        <p class="hint" id="hint">ダイヤルで時間を合わせ、点すとタイマーが始まります</p>
+        <div class="time-slider">
+          <label class="time-slider__label" for="duration-range">時間</label>
+          <input
+            id="duration-range"
+            class="time-slider__input"
+            type="range"
+            min="${MIN_SEC}"
+            max="${MAX_SEC}"
+            step="${STEP_SEC}"
+            value="${initialDuration}"
+            aria-valuetext="${formatDurationLabel(initialDuration)}"
+          />
+          <span class="time-slider__value" id="duration-label">${formatDurationLabel(initialDuration)}</span>
+        </div>
+        <p class="hint" id="hint">スライダーで時間を合わせ、点すとタイマーが始まります</p>
       </footer>
 
       <div class="timer" aria-live="polite">
@@ -149,43 +131,33 @@ function mount(): void {
   const hint = app.querySelector<HTMLElement>('#hint')!
   const timerRemain = app.querySelector<HTMLElement>('#timer-remain')!
   const timerLabel = app.querySelector<HTMLElement>('#timer-label')!
-  const dialEl = app.querySelector<HTMLElement>('#dial')!
-  const dialValue = app.querySelector<HTMLElement>('#dial-value')!
-  const dialArc = app.querySelector<SVGCircleElement>('.dial__arc')!
+  const range = app.querySelector<HTMLInputElement>('#duration-range')!
+  const durationLabel = app.querySelector<HTMLElement>('#duration-label')!
 
+  /** Configured full length */
   let durationSec = initialDuration
-  let remain = 1
+  /** Absolute seconds left on the current stick */
+  let leftSec = initialDuration
   let burnedOut = false
   let lastFrame = performance.now()
   let lastDisplayedSec = -1
 
-  const remainingSec = () => remain * durationSec
-
-  const updateDialArc = () => {
-    // Arc shows remaining fraction while running; otherwise full set amount
-    const frac = burnedOut ? 0 : engine?.isLit() ? remain : 1
-    const setFrac = (durationSec - MIN_SEC) / (MAX_SEC - MIN_SEC)
-    const show = engine?.isLit() || burnedOut ? frac : setFrac
-    const dash = Math.max(0.001, show * 100)
-    dialArc.style.strokeDasharray = `${dash} 100`
-  }
+  const fractionLeft = () => (durationSec > 0 ? leftSec / durationSec : 0)
 
   const applyStickLength = () => {
-    const visible = Math.max(remain, burnedOut ? 0.04 : BURN_OUT * 0.5)
-    stick.style.setProperty('--remain', String(visible))
-    const ash = 3 + (1 - remain) * 5
+    const frac = burnedOut ? 0.04 : Math.max(fractionLeft(), 0.04)
+    stick.style.setProperty('--remain', String(frac))
+    const burned = 1 - Math.min(1, Math.max(0, fractionLeft()))
+    const ash = 3 + burned * 5
     ashTip.style.width = `${ash}px`
     ashTip.style.height = `${ash * 0.9}px`
-    const charH = 2 + (1 - remain) * 6
-    stickChar.style.height = `${charH}px`
-    stickChar.style.opacity = remain < 0.98 ? '1' : '0'
-    updateDialArc()
+    stickChar.style.height = `${2 + burned * 6}px`
+    stickChar.style.opacity = burned > 0.02 ? '1' : '0'
   }
 
   const updateTimerDisplay = () => {
-    const sec = remainingSec()
-    const shown = burnedOut ? 0 : sec
-    const rounded = Math.ceil(shown)
+    const shown = burnedOut ? 0 : leftSec
+    const rounded = Math.ceil(Math.max(0, shown))
     if (rounded !== lastDisplayedSec) {
       lastDisplayedSec = rounded
       timerRemain.textContent = formatTime(shown)
@@ -197,29 +169,34 @@ function mount(): void {
       timerLabel.textContent = '残り'
       altar.dataset.timer = 'running'
     } else {
-      timerLabel.textContent = remain < 1 ? '一時停止' : '設定'
-      altar.dataset.timer = remain < 1 ? 'paused' : 'idle'
+      timerLabel.textContent = leftSec < durationSec - 0.2 ? '一時停止' : '設定'
+      altar.dataset.timer = leftSec < durationSec - 0.2 ? 'paused' : 'idle'
     }
-    updateDialArc()
+  }
+
+  const syncSliderUi = () => {
+    range.value = String(durationSec)
+    durationLabel.textContent = formatDurationLabel(durationSec)
+    range.setAttribute('aria-valuetext', formatDurationLabel(durationSec))
   }
 
   const defaultHint = () => {
     if (breath.isActive()) {
       hint.textContent = 'マイクに向かって、そっと息を吹きかけてみてください'
     } else {
-      hint.textContent = 'ダイヤルで時間を合わせ、点すとタイマーが始まります'
+      hint.textContent = 'スライダーで時間を合わせ、点すとタイマーが始まります'
     }
   }
 
   const notifyDone = () => {
     try {
-      navigator.vibrate?.([80, 40, 120])
+      navigator.vibrate?.([100, 50, 140])
     } catch {
       /* ignore */
     }
     if (soundOn) {
-      void playOrin().catch(() => {
-        /* autoplay / audio errors ignored */
+      void playOrin().catch((err) => {
+        console.warn('orin play failed', err)
       })
     }
   }
@@ -249,22 +226,6 @@ function mount(): void {
     updateTimerDisplay()
   }
 
-  const applyDuration = (sec: number, restart: boolean) => {
-    durationSec = sec
-    localStorage.setItem(DURATION_KEY, String(sec))
-    dialValue.textContent = formatMinutes(sec)
-    dialEl.setAttribute('aria-valuenow', String(sec))
-    dialEl.setAttribute('aria-valuetext', formatMinutes(sec))
-    if (restart) {
-      burnedOut = false
-      remain = 1
-      applyStickLength()
-      lastDisplayedSec = -1
-      if (engine.isLit()) setLitUi(true)
-    }
-    updateTimerDisplay()
-  }
-
   const getOrigin = () => {
     const sceneRect = scene.getBoundingClientRect()
     const emberRect = ember.getBoundingClientRect()
@@ -288,22 +249,9 @@ function mount(): void {
     lit: true,
   })
 
-  const dial = bindDial({
-    el: dialEl,
-    minSec: MIN_SEC,
-    maxSec: MAX_SEC,
-    stepSec: STEP_SEC,
-    valueSec: initialDuration,
-    onChange: (sec) => {
-      applyDuration(sec, true)
-      hint.textContent = engine.isLit()
-        ? `${formatMinutes(sec)}で計測を始めました`
-        : `${formatMinutes(sec)}に設定しました。点すと始まります`
-    },
-  })
-
   applyStickLength()
   updateTimerDisplay()
+  syncSliderUi()
 
   requestAnimationFrame(() => {
     engine.resize()
@@ -355,11 +303,20 @@ function mount(): void {
     } else if (!engine.isLit() && burnedOut) {
       hint.textContent = '時間が終わりました。点すと新しい線香で再開できます'
     } else {
-      hint.textContent = 'ダイヤルで時間を合わせ、点すとタイマーが始まります'
+      hint.textContent = 'スライダーで時間を合わせ、点すとタイマーが始まります'
     }
   }
 
+  // Unlock audio on first interaction anywhere useful
+  const armAudio = () => {
+    void unlockAudio()
+  }
+  ;[soundToggle, toggle, breathToggle, range].forEach((el) => {
+    el.addEventListener('pointerdown', armAudio, { once: false })
+  })
+
   breathToggle.addEventListener('click', async () => {
+    void unlockAudio()
     if (breath.isActive()) {
       breath.stop()
       engine.setBreath(0)
@@ -379,30 +336,65 @@ function mount(): void {
     }
   })
 
-  soundToggle.addEventListener('click', () => {
+  soundToggle.addEventListener('click', async () => {
     const next = !soundOn
     setSoundUi(next)
     if (next) {
-      // Preview the orin so the user knows the sound
-      void playOrin().catch(() => undefined)
-      hint.textContent = '終了時におりんが鳴ります'
+      try {
+        await playOrin()
+        hint.textContent = '終了時におりんが鳴ります'
+      } catch {
+        hint.textContent = '音の再生に失敗しました。端末の消音を確認してください'
+        setSoundUi(false)
+      }
     } else {
       hint.textContent = '音をオフにしました'
     }
   })
+
+  const onRangeInput = () => {
+    const sec = snapSec(Number(range.value))
+    // Live label while dragging
+    durationLabel.textContent = formatDurationLabel(sec)
+    range.setAttribute('aria-valuetext', formatDurationLabel(sec))
+  }
+
+  const onRangeCommit = () => {
+    const sec = snapSec(Number(range.value))
+    // Changing the slider always prepares a fresh stick of that length
+    durationSec = sec
+    leftSec = sec
+    burnedOut = false
+    lastDisplayedSec = -1
+    localStorage.setItem(DURATION_KEY, String(durationSec))
+    syncSliderUi()
+    applyStickLength()
+    updateTimerDisplay()
+    if (engine.isLit()) {
+      hint.textContent = `${formatDurationLabel(sec)}で計測中`
+    } else {
+      hint.textContent = `${formatDurationLabel(sec)}に設定しました。点すと始まります`
+    }
+  }
+
+  range.addEventListener('input', onRangeInput)
+  range.addEventListener('change', onRangeCommit)
+  // Some mobile browsers only fire input while dragging
+  range.addEventListener('pointerup', onRangeCommit)
+  range.addEventListener('touchend', onRangeCommit)
 
   const tick = (now: number) => {
     const dt = Math.min(0.05, (now - lastFrame) / 1000)
     lastFrame = now
 
     if (engine.isLit() && !burnedOut) {
-      remain = Math.max(0, remain - dt / durationSec)
+      leftSec = Math.max(0, leftSec - dt)
       applyStickLength()
-      engine.setSpawnRate(18 + remain * 36)
+      engine.setSpawnRate(18 + fractionLeft() * 36)
       updateTimerDisplay()
-      if (remain <= BURN_OUT) {
+      if (leftSec <= BURN_OUT_SEC) {
         burnedOut = true
-        remain = 0
+        leftSec = 0
         applyStickLength()
         setLitUi(false)
         notifyDone()
@@ -439,17 +431,17 @@ function mount(): void {
   requestAnimationFrame(tick)
 
   toggle.addEventListener('click', () => {
+    void unlockAudio()
     if (engine.isLit()) {
       setLitUi(false)
       return
     }
 
-    if (burnedOut || remain <= BURN_OUT) {
+    if (burnedOut || leftSec <= BURN_OUT_SEC) {
       burnedOut = false
-      remain = 1
-      applyStickLength()
+      leftSec = durationSec
       lastDisplayedSec = -1
-      dial.setValue(durationSec)
+      applyStickLength()
     }
     setLitUi(true)
   })
