@@ -53,13 +53,14 @@ function mount(): void {
   const stick = app.querySelector<HTMLElement>('#stick')!
   const toggle = app.querySelector<HTMLButtonElement>('#lit-toggle')!
 
-  /** Tip = top-center of the stick shaft (stable, no animated transforms). */
+  /** Tip = glowing ember center (stick top, nudged up into the ember). */
   const getOrigin = () => {
     const sceneRect = scene.getBoundingClientRect()
     const stickRect = stick.getBoundingClientRect()
     return {
       x: stickRect.left + stickRect.width / 2 - sceneRect.left,
-      y: stickRect.top - sceneRect.top + 1,
+      // ember sits slightly above the shaft top
+      y: stickRect.top - sceneRect.top - 3,
     }
   }
 
