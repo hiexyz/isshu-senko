@@ -50,11 +50,6 @@ function mount(): void {
       </header>
 
       <section class="stage" aria-label="線香タイマー">
-        <div class="timer" aria-live="polite">
-          <div class="timer__remain" id="timer-remain">${formatTime(initialDuration)}</div>
-          <div class="timer__label" id="timer-label">残り</div>
-        </div>
-
         <div class="scene" id="scene">
           <canvas class="smoke-layer" id="smoke" aria-hidden="true"></canvas>
           <div class="scene__art" aria-hidden="true">
@@ -97,6 +92,11 @@ function mount(): void {
         <p>線香が燃え尽きるまでを、ひとつの時間に。</p>
         <p class="hint" id="hint">時間を選んで点すと、タイマーとして使えます</p>
       </footer>
+
+      <div class="timer" aria-live="polite">
+        <span class="timer__label" id="timer-label">残り</span>
+        <span class="timer__remain" id="timer-remain">${formatTime(initialDuration)}</span>
+      </div>
     </main>
   `
 

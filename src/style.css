@@ -211,8 +211,8 @@ button {
   position: relative;
   z-index: 2;
   display: grid;
-  grid-template-rows: auto 1fr auto;
-  place-items: center;
+  grid-template-rows: 1fr auto;
+  place-items: end center;
   align-content: end;
   gap: clamp(0.65rem, 1.8vh, 1.1rem);
   min-height: 0;
@@ -220,36 +220,41 @@ button {
 }
 
 .timer {
-  text-align: center;
+  position: absolute;
+  right: clamp(0.85rem, 3vw, 1.5rem);
+  bottom: clamp(0.75rem, 2.2vh, 1.25rem);
+  z-index: 4;
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  pointer-events: none;
+  opacity: 0.38;
   color: var(--mist);
 }
 
 .timer__remain {
   font-family: var(--font-display);
-  font-weight: 500;
-  font-size: clamp(2rem, 7vw, 3.25rem);
-  letter-spacing: 0.12em;
+  font-weight: 400;
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
   line-height: 1;
   font-variant-numeric: tabular-nums;
-  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.3);
 }
 
 .timer__label {
-  margin-top: 0.4rem;
   font-family: var(--font-body);
   font-weight: 300;
-  font-size: 0.72rem;
-  letter-spacing: 0.35em;
-  text-indent: 0.35em;
-  color: rgba(228, 214, 198, 0.55);
+  font-size: 0.62rem;
+  letter-spacing: 0.22em;
+  color: rgba(228, 214, 198, 0.7);
 }
 
-.altar[data-timer='done'] .timer__remain {
-  color: var(--holder-light);
+.altar[data-timer='done'] .timer {
+  opacity: 0.5;
 }
 
-.altar[data-timer='paused'] .timer__remain {
-  opacity: 0.72;
+.altar[data-timer='paused'] .timer {
+  opacity: 0.3;
 }
 
 .durations {
@@ -284,9 +289,8 @@ button {
   position: relative;
   width: min(100%, 360px);
   aspect-ratio: 3 / 4;
-  max-height: min(58dvh, 520px);
+  max-height: min(64dvh, 560px);
   touch-action: none;
-  place-self: end center;
 }
 
 .smoke-layer {
