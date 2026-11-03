@@ -30,6 +30,9 @@ export class SmokeEngine {
   private readonly getOrigin: () => { x: number; y: number }
   private particles: SmokeParticle[] = []
   private wind: WindField = { x: 0, y: 0, strength: 0 }
+  /** 0..1 breath / blow intensity from microphone */
+  private breath = 0
+  private breathDir = 1
   private lit = true
   private spawnRate: number
   private spawnAcc = 0
@@ -62,6 +65,12 @@ export class SmokeEngine {
 
   setWind(x: number, y: number, strength: number): void {
     this.wind = { x, y, strength }
+  }
+
+  /** Blow into the mic — level 0..1. Optional signed direction (-1 left .. 1 right). */
+  setBreath(level: number, direction = 1): void {
+    this.breath = Math.max(0, Math.min(1, level))
+    this.breathDir = direction >= 0 ? 1 : -1
   }
 
   resize(): void {
@@ -146,21 +155,30 @@ export class SmokeEngine {
       )
       const drift = fbm2(p.x * 0.006, this.time * 0.2 + p.seed * 0.02, 5)
 
-      p.vy += -(26 + (1 - age) * 16) * dt
-      p.vx += (curl.x * 38 + drift * 16) * free * free * dt
-      p.vy += curl.y * 10 * free * dt
+      const breath = this.breath
+      const breathFree = Math.min(1, Math.max(0, (rise - 4) / 28))
 
-      if (this.wind.strength > 0.02 && free > 0.25) {
+      p.vy += -(26 + (1 - age) * 16) * dt
+      // Strong blow flattens the plume (less rise, more scatter)
+      p.vy += breath * breathFree * 18 * dt
+      p.vx += (curl.x * 38 + drift * 16) * free * free * (1 + breath * 2.2) * dt
+      p.vy += curl.y * 10 * free * dt
+      // Directional gust from breath
+      p.vx += this.breathDir * breath * breathFree * (70 + age * 40) * dt
+      p.vx += (Math.random() - 0.5) * breath * breathFree * 40 * dt
+
+      if (this.wind.strength > 0.02 && free > 0.25 && breath < 0.2) {
         const pull = (this.wind.x - origin.x) * 0.012 * this.wind.strength * free
         p.vx += pull * 24 * dt
       }
 
       // Re-center slightly near the tip so the stream roots at the ember
-      if (free < 0.2) {
+      // (skip when blowing hard — smoke leaves the tip immediately)
+      if (free < 0.2 && breath < 0.15) {
         p.x += (origin.x - p.x) * Math.min(1, 10 * dt)
         p.vx *= 0.85
       } else {
-        p.vx *= 1 - 0.45 * dt
+        p.vx *= 1 - (0.45 - breath * 0.25) * dt
       }
       p.vy *= 1 - 0.08 * dt
 
@@ -189,13 +207,15 @@ export class SmokeEngine {
       ctx.moveTo(origin.x, origin.y)
       let px = origin.x
       let py = origin.y
+      const breath = this.breath
       for (let i = 1; i <= 18; i++) {
         const t = i / 18
         const wobble =
-          fbm2(this.time * 0.7, i * 0.35, 9) * t * t * 7 +
-          Math.sin(this.time * 1.1 + i * 0.4) * t * t * 2
+          fbm2(this.time * 0.7, i * 0.35, 9) * t * t * (7 + breath * 28) +
+          Math.sin(this.time * 1.1 + i * 0.4) * t * t * 2 +
+          this.breathDir * breath * t * t * 36
         px = origin.x + wobble
-        py = origin.y - i * 4.2
+        py = origin.y - i * (4.2 - breath * 1.6)
         ctx.lineTo(px, py)
       }
       ctx.strokeStyle = 'rgba(236, 232, 224, 0.22)'

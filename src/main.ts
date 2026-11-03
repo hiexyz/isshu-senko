@@ -1,4 +1,5 @@
 import './style.css'
+import { BreathSensor } from './breath'
 import { SmokeEngine } from './smoke/engine'
 
 function mount(): void {
@@ -6,7 +7,7 @@ function mount(): void {
   if (!app) return
 
   app.innerHTML = `
-    <main class="altar" data-lit="true">
+    <main class="altar" data-lit="true" data-breath="off">
       <div class="altar__grain" aria-hidden="true"></div>
       <div class="altar__glow" aria-hidden="true"></div>
 
@@ -15,7 +16,10 @@ function mount(): void {
           <div class="brand__mark">一炷</div>
           <div class="brand__ruby">いっしゅ</div>
         </div>
-        <button type="button" class="toggle" id="lit-toggle" aria-pressed="true">消す</button>
+        <div class="actions">
+          <button type="button" class="toggle" id="breath-toggle" aria-pressed="false">息を聴く</button>
+          <button type="button" class="toggle" id="lit-toggle" aria-pressed="true">消す</button>
+        </div>
       </header>
 
       <section class="stage" aria-label="線香">
@@ -36,13 +40,16 @@ function mount(): void {
               </div>
             </div>
           </div>
+          <div class="breath-meter" id="breath-meter" hidden aria-hidden="true">
+            <div class="breath-meter__fill" id="breath-fill"></div>
+          </div>
         </div>
       </section>
 
       <footer class="copy">
         <h1>静かに、祈る。</h1>
         <p>線香の煙に心を預け、いまこのひと息を味わう。</p>
-        <p class="hint">画面をゆっくり動かすと、煙が空気に応じて揺らぎます</p>
+        <p class="hint" id="hint">「息を聴く」をオンにして、そっと吹きかけると煙が揺れます</p>
       </footer>
     </main>
   `
@@ -53,12 +60,14 @@ function mount(): void {
   const stick = app.querySelector<HTMLElement>('#stick')!
   const ember = app.querySelector<HTMLElement>('.ember')!
   const toggle = app.querySelector<HTMLButtonElement>('#lit-toggle')!
+  const breathToggle = app.querySelector<HTMLButtonElement>('#breath-toggle')!
+  const breathMeter = app.querySelector<HTMLElement>('#breath-meter')!
+  const breathFill = app.querySelector<HTMLElement>('#breath-fill')!
+  const hint = app.querySelector<HTMLElement>('#hint')!
 
-  /** Smoke leaves from the visual center of the glowing ember. */
   const getOrigin = () => {
     const sceneRect = scene.getBoundingClientRect()
     const emberRect = ember.getBoundingClientRect()
-    // Fallback to stick top if ember is hidden (extinguished layout still keeps element)
     if (emberRect.width < 1) {
       const stickRect = stick.getBoundingClientRect()
       return {
@@ -79,7 +88,6 @@ function mount(): void {
     lit: true,
   })
 
-  // Wait one frame so layout is ready before measuring / drawing
   requestAnimationFrame(() => {
     engine.resize()
     engine.start()
@@ -91,12 +99,16 @@ function mount(): void {
   let windX = 0
   let targetStrength = 0
   let hasPointer = false
+  let breathDir = 1
+  const breath = new BreathSensor()
 
   const updatePointerWind = (clientX: number, active: boolean) => {
     const rect = scene.getBoundingClientRect()
     windX = clientX - rect.left
     hasPointer = true
     targetStrength = active ? 0.9 : 0.35
+    const origin = getOrigin()
+    breathDir = windX >= origin.x ? 1 : -1
   }
 
   scene.addEventListener('pointermove', (e) => {
@@ -114,12 +126,63 @@ function mount(): void {
     hasPointer = false
   })
 
+  const setBreathUi = (on: boolean, error?: string) => {
+    altar.dataset.breath = on ? 'on' : 'off'
+    breathToggle.setAttribute('aria-pressed', String(on))
+    breathToggle.textContent = on ? '息を止める' : '息を聴く'
+    breathMeter.hidden = !on
+    if (error) {
+      hint.textContent = error
+    } else if (on) {
+      hint.textContent = 'マイクに向かって、そっと息を吹きかけてみてください'
+    } else {
+      hint.textContent = '「息を聴く」をオンにして、そっと吹きかけると煙が揺れます'
+    }
+  }
+
+  breathToggle.addEventListener('click', async () => {
+    if (breath.isActive()) {
+      breath.stop()
+      engine.setBreath(0)
+      breathFill.style.transform = 'scaleX(0)'
+      setBreathUi(false)
+      return
+    }
+
+    breathToggle.disabled = true
+    try {
+      await breath.start()
+      setBreathUi(true)
+    } catch {
+      setBreathUi(false, 'マイクを許可すると、息で煙を揺らせます')
+    } finally {
+      breathToggle.disabled = false
+    }
+  })
+
   const windLoop = () => {
     windStrength += (targetStrength - windStrength) * 0.08
     const origin = getOrigin()
     const t = performance.now() / 1000
     const ambientX = hasPointer ? windX : origin.x + Math.sin(t * 0.18) * 12
-    engine.setWind(ambientX, origin.y - 100, Math.max(windStrength, 0.06 + Math.sin(t * 0.3) * 0.03))
+
+    const sample = breath.sample()
+    if (sample.active) {
+      // Alternate default blow direction slowly if no pointer bias
+      if (!hasPointer && sample.blowing) {
+        breathDir = Math.sin(t * 0.7) >= 0 ? 1 : -1
+      }
+      engine.setBreath(sample.level, breathDir)
+      breathFill.style.transform = `scaleX(${sample.level})`
+      altar.dataset.blowing = sample.blowing ? 'true' : 'false'
+      // Breath overrides gentle pointer wind
+      const strength = Math.max(windStrength * (1 - sample.level), sample.level * 1.4)
+      engine.setWind(ambientX, origin.y - 100, strength)
+    } else {
+      engine.setBreath(0)
+      engine.setWind(ambientX, origin.y - 100, Math.max(windStrength, 0.06 + Math.sin(t * 0.3) * 0.03))
+    }
+
     requestAnimationFrame(windLoop)
   }
   requestAnimationFrame(windLoop)
@@ -131,6 +194,8 @@ function mount(): void {
     toggle.setAttribute('aria-pressed', String(next))
     toggle.textContent = next ? '消す' : '点す'
   })
+
+  window.addEventListener('pagehide', () => breath.stop())
 }
 
 mount()
