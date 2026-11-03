@@ -9,6 +9,8 @@ export interface SmokeParticle {
   maxLife: number
   size: number
   seed: number
+  /** Softness / opacity multiplier */
+  dens: number
 }
 
 export interface WindField {
@@ -30,7 +32,6 @@ export class SmokeEngine {
   private readonly getOrigin: () => { x: number; y: number }
   private particles: SmokeParticle[] = []
   private wind: WindField = { x: 0, y: 0, strength: 0 }
-  /** 0..1 breath / blow intensity from microphone */
   private breath = 0
   private breathDir = 1
   private lit = true
@@ -50,7 +51,7 @@ export class SmokeEngine {
     if (!ctx) throw new Error('2D canvas unavailable')
     this.ctx = ctx
     this.getOrigin = options.getOrigin
-    this.spawnRate = options.spawnRate ?? 48
+    this.spawnRate = options.spawnRate ?? 55
     this.lit = options.lit ?? true
   }
 
@@ -67,7 +68,6 @@ export class SmokeEngine {
     this.wind = { x, y, strength }
   }
 
-  /** Blow into the mic — level 0..1. Optional signed direction (-1 left .. 1 right). */
   setBreath(level: number, direction = 1): void {
     this.breath = Math.max(0, Math.min(1, level))
     this.breathDir = direction >= 0 ? 1 : -1
@@ -114,15 +114,19 @@ export class SmokeEngine {
     if (origin.x === 0 && origin.y === 0) return
 
     for (let i = 0; i < count; i++) {
+      // Tight cluster at the ember — looks like vapor leaving the tip
+      const ang = Math.random() * Math.PI * 2
+      const rad = Math.random() * 1.1
       this.particles.push({
-        x: origin.x + (Math.random() - 0.5) * 0.4,
-        y: origin.y + (Math.random() - 0.5) * 0.3,
-        vx: (Math.random() - 0.5) * 0.4,
-        vy: -(32 + Math.random() * 12),
+        x: origin.x + Math.cos(ang) * rad * 0.35,
+        y: origin.y + Math.sin(ang) * rad * 0.2 - Math.random() * 0.6,
+        vx: (Math.random() - 0.5) * 1.2,
+        vy: -(14 + Math.random() * 10),
         life: 0,
-        maxLife: 3.6 + Math.random() * 2.4,
-        size: 0.55 + Math.random() * 0.45,
+        maxLife: 4.5 + Math.random() * 3.5,
+        size: 1.6 + Math.random() * 1.8,
         seed: Math.random() * 1000,
+        dens: 0.55 + Math.random() * 0.45,
       })
     }
   }
@@ -148,49 +152,59 @@ export class SmokeEngine {
 
       const age = p.life / p.maxLife
       const rise = Math.max(0, origin.y - p.y)
-      // Stay almost vertical for the first stretch above the tip
-      const free = Math.min(1, Math.max(0, (rise - 10) / 50))
+      // Laminar near tip → turbulent as it rises (real incense behavior)
+      const free = Math.min(1, Math.max(0, (rise - 8) / 70))
 
       const curl = curlNoise(
-        p.x * 0.009 + p.seed * 0.01,
-        p.y * 0.007,
-        this.time * 0.25,
+        p.x * 0.008 + p.seed * 0.01,
+        p.y * 0.006,
+        this.time * 0.22,
         p.seed,
       )
-      const drift = fbm2(p.x * 0.006, this.time * 0.2 + p.seed * 0.02, 5)
+      const drift = fbm2(p.x * 0.005, this.time * 0.18 + p.seed * 0.02, 5)
+      const meander = fbm2(p.seed * 0.01, this.time * 0.35 + rise * 0.02, 11)
 
       const breath = this.breath
-      const breathFree = Math.min(1, Math.max(0, (rise - 4) / 28))
+      const breathFree = Math.min(1, Math.max(0, (rise - 3) / 24))
 
-      p.vy += -(26 + (1 - age) * 16) * dt
-      // Strong blow flattens the plume (less rise, more scatter)
-      p.vy += breath * breathFree * 18 * dt
-      p.vx += (curl.x * 38 + drift * 16) * free * free * (1 + breath * 2.2) * dt
-      p.vy += curl.y * 10 * free * dt
-      // Directional gust from breath
-      p.vx += this.breathDir * breath * breathFree * (95 + age * 55) * dt
-      p.vx += (Math.random() - 0.5) * breath * breathFree * 55 * dt
+      // Buoyancy slows as plume cools / ages
+      p.vy += -(12 + (1 - age) * 18 + free * 6) * dt
+      p.vy += breath * breathFree * 14 * dt
 
-      if (this.wind.strength > 0.02 && free > 0.25 && breath < 0.12) {
-        const pull = (this.wind.x - origin.x) * 0.012 * this.wind.strength * free
-        p.vx += pull * 24 * dt
+      // Gentle lateral meander grows with height
+      const turb = 0.15 + free * free * (1.1 + breath * 1.8)
+      p.vx += (curl.x * 22 + drift * 10 + meander * 8) * turb * dt
+      p.vy += curl.y * 7 * turb * dt
+
+      p.vx += this.breathDir * breath * breathFree * (70 + age * 40) * dt
+      p.vx += (Math.random() - 0.5) * breath * breathFree * 35 * dt
+
+      if (this.wind.strength > 0.02 && free > 0.2 && breath < 0.12) {
+        const pull = (this.wind.x - origin.x) * 0.01 * this.wind.strength * free
+        p.vx += pull * 20 * dt
       }
 
-      // Re-center slightly near the tip so the stream roots at the ember
-      // (skip when blowing — smoke leaves the tip immediately)
-      if (free < 0.2 && breath < 0.06) {
-        p.x += (origin.x - p.x) * Math.min(1, 10 * dt)
-        p.vx *= 0.85
+      // Keep plume rooted near tip without looking like a hard string
+      if (free < 0.15 && breath < 0.08) {
+        p.x += (origin.x - p.x) * Math.min(1, 4 * dt)
+        p.vx *= 0.9
       } else {
-        p.vx *= 1 - (0.45 - breath * 0.25) * dt
+        p.vx *= 1 - 0.35 * dt
       }
-      p.vy *= 1 - 0.08 * dt
+      p.vy *= 1 - 0.06 * dt
+
+      const speed = Math.hypot(p.vx, p.vy)
+      if (speed > 90) {
+        p.vx = (p.vx / speed) * 90
+        p.vy = (p.vy / speed) * 90
+      }
 
       p.x += p.vx * dt
       p.y += p.vy * dt
-      p.size += (0.4 + age * 1.3) * (0.25 + free) * dt
+      // Expand into soft haze
+      p.size += (1.1 + age * 3.2 + free * 1.4) * dt
 
-      if (p.y > -60 && p.x > -40 && p.x < this.width + 40) next.push(p)
+      if (p.y > -80 && p.x > -60 && p.x < this.width + 60) next.push(p)
     }
 
     this.particles = next
@@ -204,57 +218,54 @@ export class SmokeEngine {
     const origin = this.getOrigin()
     if (!Number.isFinite(origin.x) || !Number.isFinite(origin.y)) return
 
+    // Soft ember heat haze only — no white thread/line
     if (this.lit) {
-      // Continuous ribbon from the exact tip — makes the source obvious
       ctx.globalCompositeOperation = 'source-over'
-      ctx.beginPath()
-      ctx.moveTo(origin.x, origin.y)
-      let px = origin.x
-      let py = origin.y
-      const breath = this.breath
-      for (let i = 1; i <= 18; i++) {
-        const t = i / 18
-        const wobble =
-          fbm2(this.time * 0.7, i * 0.35, 9) * t * t * (7 + breath * 28) +
-          Math.sin(this.time * 1.1 + i * 0.4) * t * t * 2 +
-          this.breathDir * breath * t * t * 36
-        px = origin.x + wobble
-        py = origin.y - i * (4.2 - breath * 1.6)
-        ctx.lineTo(px, py)
-      }
-      ctx.strokeStyle = 'rgba(236, 232, 224, 0.22)'
-      ctx.lineWidth = 1.1
-      ctx.lineCap = 'round'
-      ctx.lineJoin = 'round'
-      ctx.stroke()
-
-      // Soft tip bloom right on the ember
-      const tipGlow = ctx.createRadialGradient(origin.x, origin.y, 0, origin.x, origin.y, 6)
-      tipGlow.addColorStop(0, 'rgba(255, 230, 200, 0.2)')
-      tipGlow.addColorStop(1, 'rgba(255, 200, 150, 0)')
+      const tipGlow = ctx.createRadialGradient(origin.x, origin.y, 0, origin.x, origin.y, 10)
+      tipGlow.addColorStop(0, 'rgba(255, 190, 140, 0.16)')
+      tipGlow.addColorStop(0.45, 'rgba(220, 200, 180, 0.05)')
+      tipGlow.addColorStop(1, 'rgba(200, 190, 180, 0)')
       ctx.fillStyle = tipGlow
       ctx.beginPath()
-      ctx.arc(origin.x, origin.y, 6, 0, Math.PI * 2)
+      ctx.arc(origin.x, origin.y, 10, 0, Math.PI * 2)
       ctx.fill()
     }
 
+    // Soft volumetric puffs (cool grey, low alpha — realistic incense)
     ctx.globalCompositeOperation = 'source-over'
     for (const p of this.particles) {
       const age = p.life / p.maxLife
-      const envelope =
-        age < 0.05 ? age / 0.05 : age > 0.55 ? Math.pow(1 - (age - 0.55) / 0.45, 1.4) : 1
-      const alpha = envelope * (0.16 + (1 - age) * 0.2)
-      if (alpha < 0.015) continue
+      const fadeIn = age < 0.04 ? age / 0.04 : 1
+      const fadeOut = age > 0.45 ? Math.pow(1 - (age - 0.45) / 0.55, 1.35) : 1
+      const alpha = fadeIn * fadeOut * p.dens * (0.045 + (1 - age) * 0.07)
+      if (alpha < 0.008) continue
 
-      const r = Math.max(0.6, p.size * (0.55 + age * 1.4))
-      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r)
-      g.addColorStop(0, `rgba(245, 242, 235, ${alpha})`)
-      g.addColorStop(0.4, `rgba(220, 216, 208, ${alpha * 0.35})`)
-      g.addColorStop(1, 'rgba(200, 198, 190, 0)')
+      const r = Math.max(2.2, p.size * (0.85 + age * 1.6))
+      // Stretch slightly along motion for wispy look
+      const speed = Math.hypot(p.vx, p.vy) + 0.001
+      const stretch = 1 + Math.min(0.55, speed * 0.012)
+      const angle = Math.atan2(p.vy, p.vx)
+
+      ctx.save()
+      ctx.translate(p.x, p.y)
+      ctx.rotate(angle)
+      ctx.scale(stretch, 1 / Math.sqrt(stretch))
+
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r)
+      // Warm near tip (young), cooler grey as it rises
+      const warm = Math.max(0, 1 - age * 2.2)
+      const cr = Math.round(210 + warm * 25)
+      const cg = Math.round(208 + warm * 18)
+      const cb = Math.round(205 + warm * 8)
+      g.addColorStop(0, `rgba(${cr}, ${cg}, ${cb}, ${alpha})`)
+      g.addColorStop(0.35, `rgba(190, 188, 184, ${alpha * 0.4})`)
+      g.addColorStop(1, 'rgba(170, 168, 164, 0)')
+
       ctx.fillStyle = g
       ctx.beginPath()
-      ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+      ctx.arc(0, 0, r, 0, Math.PI * 2)
       ctx.fill()
+      ctx.restore()
     }
   }
 }
