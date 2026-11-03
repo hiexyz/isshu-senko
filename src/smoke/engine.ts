@@ -9,7 +9,6 @@ export interface SmokeParticle {
   maxLife: number
   size: number
   seed: number
-  phase: number
 }
 
 export interface WindField {
@@ -20,9 +19,7 @@ export interface WindField {
 
 export interface SmokeEngineOptions {
   canvas: HTMLCanvasElement
-  /** Emitter position in canvas CSS pixels */
   getOrigin: () => { x: number; y: number }
-  /** Particles spawned per second while lit */
   spawnRate?: number
   lit?: boolean
 }
@@ -50,19 +47,19 @@ export class SmokeEngine {
     if (!ctx) throw new Error('2D canvas unavailable')
     this.ctx = ctx
     this.getOrigin = options.getOrigin
-    this.spawnRate = options.spawnRate ?? 28
+    this.spawnRate = options.spawnRate ?? 48
     this.lit = options.lit ?? true
   }
 
   setLit(lit: boolean): void {
     this.lit = lit
+    if (!lit) this.particles = []
   }
 
   isLit(): boolean {
     return this.lit
   }
 
-  /** Pointer / ambient wind in canvas CSS pixels */
   setWind(x: number, y: number, strength: number): void {
     this.wind = { x, y, strength }
   }
@@ -100,18 +97,19 @@ export class SmokeEngine {
 
   private spawn(count: number): void {
     const origin = this.getOrigin()
+    if (!Number.isFinite(origin.x) || !Number.isFinite(origin.y)) return
+    if (origin.x === 0 && origin.y === 0) return
+
     for (let i = 0; i < count; i++) {
-      const maxLife = 3.8 + Math.random() * 3.2
       this.particles.push({
-        x: origin.x + (Math.random() - 0.5) * 1.1,
-        y: origin.y + (Math.random() - 0.5) * 0.8,
-        vx: (Math.random() - 0.5) * 2.2,
-        vy: -(22 + Math.random() * 16),
+        x: origin.x + (Math.random() - 0.5) * 0.4,
+        y: origin.y + (Math.random() - 0.5) * 0.3,
+        vx: (Math.random() - 0.5) * 0.4,
+        vy: -(32 + Math.random() * 12),
         life: 0,
-        maxLife,
-        size: 0.7 + Math.random() * 1.1,
+        maxLife: 3.6 + Math.random() * 2.4,
+        size: 0.55 + Math.random() * 0.45,
         seed: Math.random() * 1000,
-        phase: Math.random() * Math.PI * 2,
       })
     }
   }
@@ -136,52 +134,41 @@ export class SmokeEngine {
       if (p.life >= p.maxLife) continue
 
       const age = p.life / p.maxLife
-      const rise = 1 - age
+      const rise = Math.max(0, origin.y - p.y)
+      // Stay almost vertical for the first stretch above the tip
+      const free = Math.min(1, Math.max(0, (rise - 10) / 50))
 
-      // Layered curl + FBM for thin meandering wisps
-      const nx = p.x * 0.012
-      const ny = p.y * 0.01
-      const curl = curlNoise(nx + p.seed * 0.01, ny, this.time * 0.35, p.seed)
-      const drift = fbm2(nx * 0.8, this.time * 0.25 + p.seed * 0.02, 7)
+      const curl = curlNoise(
+        p.x * 0.009 + p.seed * 0.01,
+        p.y * 0.007,
+        this.time * 0.25,
+        p.seed,
+      )
+      const drift = fbm2(p.x * 0.006, this.time * 0.2 + p.seed * 0.02, 5)
 
-      // Smoke starts nearly vertical, then gains turbulence with height/age
-      const turbulence = 0.15 + age * age * 2.4
-      const buoyancy = 22 + rise * 18 + fbm2(p.seed, this.time * 0.4, 3) * 6
+      p.vy += -(26 + (1 - age) * 16) * dt
+      p.vx += (curl.x * 38 + drift * 16) * free * free * dt
+      p.vy += curl.y * 10 * free * dt
 
-      p.vx += curl.x * 55 * turbulence * dt
-      p.vx += drift * 28 * turbulence * dt
-      p.vy += -buoyancy * dt
-      p.vy += curl.y * 18 * turbulence * dt
-
-      // Soft pointer wind — stronger when nearby and higher up
-      if (this.wind.strength > 0.01) {
-        const dx = p.x - this.wind.x
-        const dy = p.y - this.wind.y
-        const dist = Math.hypot(dx, dy) + 1
-        const influence = this.wind.strength * Math.exp(-dist / 140) * (0.35 + age)
-        const wx = (this.wind.x - origin.x) * 0.02
-        p.vx += (wx + dx * 0.01) * influence * 40 * dt
-        p.vy += dy * 0.004 * influence * 20 * dt
+      if (this.wind.strength > 0.02 && free > 0.25) {
+        const pull = (this.wind.x - origin.x) * 0.012 * this.wind.strength * free
+        p.vx += pull * 24 * dt
       }
 
-      // Gentle damping keeps wisps delicate
-      p.vx *= 1 - 0.55 * dt
-      p.vy *= 1 - 0.12 * dt
-
-      // Cap runaway velocity
-      const speed = Math.hypot(p.vx, p.vy)
-      if (speed > 120) {
-        p.vx = (p.vx / speed) * 120
-        p.vy = (p.vy / speed) * 120
+      // Re-center slightly near the tip so the stream roots at the ember
+      if (free < 0.2) {
+        p.x += (origin.x - p.x) * Math.min(1, 10 * dt)
+        p.vx *= 0.85
+      } else {
+        p.vx *= 1 - 0.45 * dt
       }
+      p.vy *= 1 - 0.08 * dt
 
       p.x += p.vx * dt
       p.y += p.vy * dt
-      p.size += (0.55 + age * 1.6) * dt
+      p.size += (0.4 + age * 1.3) * (0.25 + free) * dt
 
-      if (p.y > -40 && p.x > -80 && p.x < this.width + 80) {
-        next.push(p)
-      }
+      if (p.y > -60 && p.x > -40 && p.x < this.width + 40) next.push(p)
     }
 
     this.particles = next
@@ -190,52 +177,60 @@ export class SmokeEngine {
   private draw(): void {
     const { ctx, width, height } = this
     ctx.clearRect(0, 0, width, height)
+    if (this.width < 2 || this.height < 2) return
 
-    // Soft additive-ish look via light strokes
-    ctx.globalCompositeOperation = 'lighter'
+    const origin = this.getOrigin()
+    if (!Number.isFinite(origin.x) || !Number.isFinite(origin.y)) return
 
-    for (const p of this.particles) {
-      const age = p.life / p.maxLife
-      // Thin near tip, then soft bloom, then fade
-      const envelope =
-        age < 0.08
-          ? age / 0.08
-          : age > 0.55
-            ? Math.pow(1 - (age - 0.55) / 0.45, 1.6)
-            : 1
-
-      const alpha = envelope * (0.08 + (1 - age) * 0.16)
-      if (alpha < 0.01) continue
-
-      const r = p.size * (0.55 + age * 1.35)
-      const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r)
-      gradient.addColorStop(0, `rgba(248, 245, 238, ${alpha})`)
-      gradient.addColorStop(0.28, `rgba(228, 224, 216, ${alpha * 0.4})`)
-      gradient.addColorStop(1, 'rgba(200, 198, 190, 0)')
-
+    if (this.lit) {
+      // Continuous ribbon from the exact tip — makes the source obvious
+      ctx.globalCompositeOperation = 'source-over'
       ctx.beginPath()
-      ctx.fillStyle = gradient
-      ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+      ctx.moveTo(origin.x, origin.y)
+      let px = origin.x
+      let py = origin.y
+      for (let i = 1; i <= 18; i++) {
+        const t = i / 18
+        const wobble =
+          fbm2(this.time * 0.7, i * 0.35, 9) * t * t * 7 +
+          Math.sin(this.time * 1.1 + i * 0.4) * t * t * 2
+        px = origin.x + wobble
+        py = origin.y - i * 4.2
+        ctx.lineTo(px, py)
+      }
+      ctx.strokeStyle = 'rgba(236, 232, 224, 0.22)'
+      ctx.lineWidth = 1.1
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      ctx.stroke()
+
+      // Soft tip bloom right on the ember
+      const tipGlow = ctx.createRadialGradient(origin.x, origin.y, 0, origin.x, origin.y, 6)
+      tipGlow.addColorStop(0, 'rgba(255, 230, 200, 0.2)')
+      tipGlow.addColorStop(1, 'rgba(255, 200, 150, 0)')
+      ctx.fillStyle = tipGlow
+      ctx.beginPath()
+      ctx.arc(origin.x, origin.y, 6, 0, Math.PI * 2)
       ctx.fill()
     }
 
-    // Extra thin core stream near the ember for realism
-    if (this.lit) {
-      const origin = this.getOrigin()
-      ctx.globalCompositeOperation = 'source-over'
-      for (let i = 0; i < 8; i++) {
-        const t = this.time * 0.9 + i * 0.2
-        const wobble = fbm2(t, i * 0.5, 11) * (4 + i * 1.2)
-        const y = origin.y - i * 7
-        const x = origin.x + wobble * (i / 8)
-        const a = 0.14 * (1 - i / 8)
-        ctx.beginPath()
-        ctx.fillStyle = `rgba(236, 232, 224, ${a})`
-        ctx.arc(x, y, 0.7 + i * 0.15, 0, Math.PI * 2)
-        ctx.fill()
-      }
-    }
-
     ctx.globalCompositeOperation = 'source-over'
+    for (const p of this.particles) {
+      const age = p.life / p.maxLife
+      const envelope =
+        age < 0.05 ? age / 0.05 : age > 0.55 ? Math.pow(1 - (age - 0.55) / 0.45, 1.4) : 1
+      const alpha = envelope * (0.16 + (1 - age) * 0.2)
+      if (alpha < 0.015) continue
+
+      const r = Math.max(0.6, p.size * (0.55 + age * 1.4))
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r)
+      g.addColorStop(0, `rgba(245, 242, 235, ${alpha})`)
+      g.addColorStop(0.4, `rgba(220, 216, 208, ${alpha * 0.35})`)
+      g.addColorStop(1, 'rgba(200, 198, 190, 0)')
+      ctx.fillStyle = g
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+      ctx.fill()
+    }
   }
 }
