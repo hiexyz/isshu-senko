@@ -73,6 +73,10 @@ export class SmokeEngine {
     this.breathDir = direction >= 0 ? 1 : -1
   }
 
+  setSpawnRate(rate: number): void {
+    this.spawnRate = Math.max(0, rate)
+  }
+
   resize(): void {
     const rect = this.canvas.getBoundingClientRect()
     this.dpr = Math.min(window.devicePixelRatio || 1, 2)

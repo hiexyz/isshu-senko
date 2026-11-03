@@ -2,6 +2,11 @@ import './style.css'
 import { BreathSensor } from './breath'
 import { SmokeEngine } from './smoke/engine'
 
+/** Full stick lifetime while lit (seconds). */
+const BURN_DURATION_SEC = 180
+/** Remaining fraction below this auto-extinguishes. */
+const BURN_OUT = 0.06
+
 function mount(): void {
   const app = document.querySelector<HTMLDivElement>('#app')
   if (!app) return
@@ -34,7 +39,8 @@ function mount(): void {
             </div>
             <div class="stick" id="stick">
               <div class="stick__shaft"></div>
-              <div class="stick__ash-tip"></div>
+              <div class="stick__char" id="stick-char"></div>
+              <div class="stick__ash-tip" id="ash-tip"></div>
               <div class="ember" aria-hidden="true">
                 <div class="ember__core"></div>
               </div>
@@ -49,7 +55,7 @@ function mount(): void {
       <footer class="copy">
         <h1>静かに、祈る。</h1>
         <p>線香の煙に心を預け、いまこのひと息を味わう。</p>
-        <p class="hint" id="hint">「息を聴く」をオンにして、そっと吹きかけると煙が揺れます</p>
+        <p class="hint" id="hint">線香は静かに燃え、やがて短くなって消えます</p>
       </footer>
     </main>
   `
@@ -58,6 +64,8 @@ function mount(): void {
   const scene = app.querySelector<HTMLElement>('#scene')!
   const canvas = app.querySelector<HTMLCanvasElement>('#smoke')!
   const stick = app.querySelector<HTMLElement>('#stick')!
+  const ashTip = app.querySelector<HTMLElement>('#ash-tip')!
+  const stickChar = app.querySelector<HTMLElement>('#stick-char')!
   const ember = app.querySelector<HTMLElement>('.ember')!
   const toggle = app.querySelector<HTMLButtonElement>('#lit-toggle')!
   const breathToggle = app.querySelector<HTMLButtonElement>('#breath-toggle')!
@@ -65,10 +73,51 @@ function mount(): void {
   const breathFill = app.querySelector<HTMLElement>('#breath-fill')!
   const hint = app.querySelector<HTMLElement>('#hint')!
 
+  /** 1 = fresh stick, 0 = burned out */
+  let remain = 1
+  let burnedOut = false
+  let lastFrame = performance.now()
+
+  const applyStickLength = () => {
+    // Keep a tiny stub in the holder at the end
+    const visible = Math.max(remain, burnedOut ? 0.04 : BURN_OUT * 0.5)
+    stick.style.setProperty('--remain', String(visible))
+    // Ash tip grows a little as it burns
+    const ash = 3 + (1 - remain) * 5
+    ashTip.style.width = `${ash}px`
+    ashTip.style.height = `${ash * 0.9}px`
+    // Charred band just below the ember
+    const charH = 2 + (1 - remain) * 6
+    stickChar.style.height = `${charH}px`
+    stickChar.style.opacity = remain < 0.98 ? '1' : '0'
+  }
+
+  const defaultHint = () => {
+    if (breath.isActive()) {
+      hint.textContent = 'マイクに向かって、そっと息を吹きかけてみてください'
+    } else {
+      hint.textContent = '線香は静かに燃え、やがて短くなって消えます'
+    }
+  }
+
+  const setLitUi = (lit: boolean) => {
+    engine.setLit(lit)
+    altar.dataset.lit = String(lit)
+    toggle.setAttribute('aria-pressed', String(lit))
+    toggle.textContent = lit ? '消す' : '点す'
+    if (!lit && burnedOut) {
+      hint.textContent = '燃え尽きました。点すと新しい線香になります'
+    } else if (!lit) {
+      hint.textContent = '火を止めました。点すと続きから燃えます'
+    } else {
+      defaultHint()
+    }
+  }
+
   const getOrigin = () => {
     const sceneRect = scene.getBoundingClientRect()
     const emberRect = ember.getBoundingClientRect()
-    if (emberRect.width < 1) {
+    if (emberRect.width < 1 || altar.dataset.lit !== 'true') {
       const stickRect = stick.getBoundingClientRect()
       return {
         x: stickRect.left + stickRect.width / 2 - sceneRect.left,
@@ -87,6 +136,8 @@ function mount(): void {
     spawnRate: 48,
     lit: true,
   })
+
+  applyStickLength()
 
   requestAnimationFrame(() => {
     engine.resize()
@@ -135,8 +186,10 @@ function mount(): void {
       hint.textContent = error
     } else if (on) {
       hint.textContent = 'マイクに向かって、そっと息を吹きかけてみてください'
+    } else if (!engine.isLit() && burnedOut) {
+      hint.textContent = '燃え尽きました。点すと新しい線香になります'
     } else {
-      hint.textContent = '「息を聴く」をオンにして、そっと吹きかけると煙が揺れます'
+      hint.textContent = '線香は静かに燃え、やがて短くなって消えます'
     }
   }
 
@@ -160,40 +213,64 @@ function mount(): void {
     }
   })
 
-  const windLoop = () => {
+  const tick = (now: number) => {
+    const dt = Math.min(0.05, (now - lastFrame) / 1000)
+    lastFrame = now
+
+    if (engine.isLit() && !burnedOut) {
+      remain = Math.max(0, remain - dt / BURN_DURATION_SEC)
+      applyStickLength()
+      engine.setSpawnRate(18 + remain * 36)
+      if (remain <= BURN_OUT) {
+        burnedOut = true
+        remain = 0
+        applyStickLength()
+        setLitUi(false)
+      }
+    }
+
     windStrength += (targetStrength - windStrength) * 0.08
     const origin = getOrigin()
-    const t = performance.now() / 1000
+    const t = now / 1000
     const ambientX = hasPointer ? windX : origin.x + Math.sin(t * 0.18) * 12
 
     const sample = breath.sample()
     if (sample.active) {
-      // Alternate default blow direction slowly if no pointer bias
       if (!hasPointer && sample.blowing) {
         breathDir = Math.sin(t * 0.7) >= 0 ? 1 : -1
       }
-      // Soft breaths already feel strong on the plume
       const gust = Math.min(1, sample.level * 1.25)
-      engine.setBreath(gust, breathDir)
+      engine.setBreath(engine.isLit() ? gust : 0, breathDir)
       breathFill.style.transform = `scaleX(${gust})`
       altar.dataset.blowing = sample.blowing ? 'true' : 'false'
       const strength = Math.max(windStrength * (1 - gust), gust * 1.7)
-      engine.setWind(ambientX, origin.y - 100, strength)
+      engine.setWind(ambientX, origin.y - 100, engine.isLit() ? strength : 0)
     } else {
       engine.setBreath(0)
-      engine.setWind(ambientX, origin.y - 100, Math.max(windStrength, 0.06 + Math.sin(t * 0.3) * 0.03))
+      engine.setWind(
+        ambientX,
+        origin.y - 100,
+        engine.isLit() ? Math.max(windStrength, 0.06 + Math.sin(t * 0.3) * 0.03) : 0,
+      )
     }
 
-    requestAnimationFrame(windLoop)
+    requestAnimationFrame(tick)
   }
-  requestAnimationFrame(windLoop)
+  requestAnimationFrame(tick)
 
   toggle.addEventListener('click', () => {
-    const next = !engine.isLit()
-    engine.setLit(next)
-    altar.dataset.lit = String(next)
-    toggle.setAttribute('aria-pressed', String(next))
-    toggle.textContent = next ? '消す' : '点す'
+    if (engine.isLit()) {
+      setLitUi(false)
+      return
+    }
+
+    // Fresh stick after burnout; otherwise resume
+    if (burnedOut || remain <= BURN_OUT) {
+      burnedOut = false
+      remain = 1
+      applyStickLength()
+    }
+    setLitUi(true)
   })
 
   window.addEventListener('pagehide', () => breath.stop())

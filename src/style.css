@@ -310,14 +310,17 @@ button {
 }
 
 .stick {
+  --remain: 1;
   position: absolute;
   left: 50%;
   bottom: calc(17% + 8%);
   width: 3px;
-  height: 38%;
+  /* Shortens from the top as --remain decreases (anchored at holder) */
+  height: calc(4% + 34% * var(--remain));
   margin-left: -1.5px;
   transform-origin: bottom center;
   z-index: 4;
+  will-change: height;
 }
 
 .stick__shaft {
@@ -328,6 +331,19 @@ button {
   box-shadow: 1px 0 2px rgba(0, 0, 0, 0.35);
 }
 
+.stick__char {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 3.5px;
+  height: 3px;
+  margin-left: -1.75px;
+  border-radius: 1px 1px 0 0;
+  background: linear-gradient(180deg, #2a2420, #1a4538 70%);
+  opacity: 0;
+  pointer-events: none;
+}
+
 .stick__ash-tip {
   position: absolute;
   left: 50%;
@@ -335,14 +351,20 @@ button {
   width: 4px;
   height: 4px;
   transform: translateX(-50%);
-  border-radius: 50%;
-  background: linear-gradient(180deg, #d8d4cc, #9a9690);
+  border-radius: 50% 50% 40% 40%;
+  background: linear-gradient(180deg, #e2ddd4, #9a9690 70%, #6e6a64);
   opacity: 0;
   transition: opacity 0.6s ease;
+  box-shadow: 0 0 1px rgba(0, 0, 0, 0.25);
 }
 
 .altar[data-lit='true'] .stick__ash-tip {
   opacity: 1;
+}
+
+.altar[data-lit='false'] .stick__ash-tip {
+  opacity: 0.85;
+  background: linear-gradient(180deg, #cfc9c0, #7a7570);
 }
 
 .ember {
