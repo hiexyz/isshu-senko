@@ -51,7 +51,7 @@ export class SmokeEngine {
     if (!ctx) throw new Error('2D canvas unavailable')
     this.ctx = ctx
     this.getOrigin = options.getOrigin
-    this.spawnRate = options.spawnRate ?? 55
+    this.spawnRate = options.spawnRate ?? 14
     this.lit = options.lit ?? true
   }
 
@@ -114,19 +114,19 @@ export class SmokeEngine {
     if (origin.x === 0 && origin.y === 0) return
 
     for (let i = 0; i < count; i++) {
-      // Tight cluster at the ember — looks like vapor leaving the tip
+      // Sparse, delicate wisps from the ember
       const ang = Math.random() * Math.PI * 2
-      const rad = Math.random() * 1.1
+      const rad = Math.random() * 0.7
       this.particles.push({
-        x: origin.x + Math.cos(ang) * rad * 0.35,
-        y: origin.y + Math.sin(ang) * rad * 0.2 - Math.random() * 0.6,
-        vx: (Math.random() - 0.5) * 1.2,
-        vy: -(14 + Math.random() * 10),
+        x: origin.x + Math.cos(ang) * rad * 0.25,
+        y: origin.y + Math.sin(ang) * rad * 0.15 - Math.random() * 0.4,
+        vx: (Math.random() - 0.5) * 0.7,
+        vy: -(16 + Math.random() * 8),
         life: 0,
-        maxLife: 4.5 + Math.random() * 3.5,
-        size: 1.6 + Math.random() * 1.8,
+        maxLife: 5.5 + Math.random() * 3,
+        size: 1.2 + Math.random() * 1.1,
         seed: Math.random() * 1000,
-        dens: 0.55 + Math.random() * 0.45,
+        dens: 0.35 + Math.random() * 0.3,
       })
     }
   }
@@ -201,8 +201,8 @@ export class SmokeEngine {
 
       p.x += p.vx * dt
       p.y += p.vy * dt
-      // Expand into soft haze
-      p.size += (1.1 + age * 3.2 + free * 1.4) * dt
+      // Expand slowly into a thin haze
+      p.size += (0.55 + age * 1.6 + free * 0.7) * dt
 
       if (p.y > -80 && p.x > -60 && p.x < this.width + 60) next.push(p)
     }
@@ -237,10 +237,10 @@ export class SmokeEngine {
       const age = p.life / p.maxLife
       const fadeIn = age < 0.04 ? age / 0.04 : 1
       const fadeOut = age > 0.45 ? Math.pow(1 - (age - 0.45) / 0.55, 1.35) : 1
-      const alpha = fadeIn * fadeOut * p.dens * (0.045 + (1 - age) * 0.07)
-      if (alpha < 0.008) continue
+      const alpha = fadeIn * fadeOut * p.dens * (0.028 + (1 - age) * 0.04)
+      if (alpha < 0.006) continue
 
-      const r = Math.max(2.2, p.size * (0.85 + age * 1.6))
+      const r = Math.max(1.8, p.size * (0.7 + age * 1.15))
       // Stretch slightly along motion for wispy look
       const speed = Math.hypot(p.vx, p.vy) + 0.001
       const stretch = 1 + Math.min(0.55, speed * 0.012)

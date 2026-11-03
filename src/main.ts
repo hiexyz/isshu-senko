@@ -233,7 +233,7 @@ function mount(): void {
   const engine = new SmokeEngine({
     canvas,
     getOrigin,
-    spawnRate: 48,
+    spawnRate: 12,
     lit: true,
   })
 
@@ -356,7 +356,7 @@ function mount(): void {
     if (engine.isLit() && !burnedOut) {
       leftSec = Math.max(0, leftSec - dt)
       applyStickLength()
-      engine.setSpawnRate(18 + fractionLeft() * 36)
+      engine.setSpawnRate(8 + fractionLeft() * 8)
       updateTimerDisplay()
       if (leftSec <= BURN_OUT_SEC) {
         burnedOut = true
