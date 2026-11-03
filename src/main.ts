@@ -172,11 +172,12 @@ function mount(): void {
       if (!hasPointer && sample.blowing) {
         breathDir = Math.sin(t * 0.7) >= 0 ? 1 : -1
       }
-      engine.setBreath(sample.level, breathDir)
-      breathFill.style.transform = `scaleX(${sample.level})`
+      // Soft breaths already feel strong on the plume
+      const gust = Math.min(1, sample.level * 1.25)
+      engine.setBreath(gust, breathDir)
+      breathFill.style.transform = `scaleX(${gust})`
       altar.dataset.blowing = sample.blowing ? 'true' : 'false'
-      // Breath overrides gentle pointer wind
-      const strength = Math.max(windStrength * (1 - sample.level), sample.level * 1.4)
+      const strength = Math.max(windStrength * (1 - gust), gust * 1.7)
       engine.setWind(ambientX, origin.y - 100, strength)
     } else {
       engine.setBreath(0)

@@ -164,17 +164,17 @@ export class SmokeEngine {
       p.vx += (curl.x * 38 + drift * 16) * free * free * (1 + breath * 2.2) * dt
       p.vy += curl.y * 10 * free * dt
       // Directional gust from breath
-      p.vx += this.breathDir * breath * breathFree * (70 + age * 40) * dt
-      p.vx += (Math.random() - 0.5) * breath * breathFree * 40 * dt
+      p.vx += this.breathDir * breath * breathFree * (95 + age * 55) * dt
+      p.vx += (Math.random() - 0.5) * breath * breathFree * 55 * dt
 
-      if (this.wind.strength > 0.02 && free > 0.25 && breath < 0.2) {
+      if (this.wind.strength > 0.02 && free > 0.25 && breath < 0.12) {
         const pull = (this.wind.x - origin.x) * 0.012 * this.wind.strength * free
         p.vx += pull * 24 * dt
       }
 
       // Re-center slightly near the tip so the stream roots at the ember
-      // (skip when blowing hard — smoke leaves the tip immediately)
-      if (free < 0.2 && breath < 0.15) {
+      // (skip when blowing — smoke leaves the tip immediately)
+      if (free < 0.2 && breath < 0.06) {
         p.x += (origin.x - p.x) * Math.min(1, 10 * dt)
         p.vx *= 0.85
       } else {

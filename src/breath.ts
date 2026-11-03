@@ -45,8 +45,12 @@ export class BreathSensor {
     const source = ctx.createMediaStreamSource(stream)
     const analyser = ctx.createAnalyser()
     analyser.fftSize = 2048
-    analyser.smoothingTimeConstant = 0.55
-    source.connect(analyser)
+    analyser.smoothingTimeConstant = 0.35
+    // Soft boost so quiet phone mics still register a gentle breath
+    const gain = ctx.createGain()
+    gain.gain.value = 2.4
+    source.connect(gain)
+    gain.connect(analyser)
 
     this.stream = stream
     this.ctx = ctx
@@ -114,28 +118,35 @@ export class BreathSensor {
     // Blow tends to elevate high band relative to mid (speech)
     const blowShape = highAvg / (midAvg + 1e-6)
 
-    // Combine RMS with high-band energy
-    const raw = Math.min(1, rms * 4.2 + highAvg * 18)
-    const shaped = raw * (0.65 + Math.min(1.4, blowShape) * 0.35)
+    // Combine RMS with high-band energy (high sensitivity for soft breaths)
+    const raw = Math.min(1, rms * 9.5 + highAvg * 36)
+    const shaped = raw * (0.75 + Math.min(1.6, blowShape) * 0.4)
 
-    // Learn quiet baseline for first ~1.5s then slowly track
-    if (this.baselineFrames < 90) {
-      this.baseline += (shaped - this.baseline) * 0.08
+    // Learn quiet baseline briefly, then only drift downward slowly
+    // so ambient noise doesn't raise the gate too high
+    if (this.baselineFrames < 60) {
+      this.baseline += (shaped - this.baseline) * 0.12
       this.baselineFrames++
+    } else if (shaped < this.baseline) {
+      this.baseline += (shaped - this.baseline) * 0.04
     } else {
-      this.baseline += (Math.min(shaped, this.baseline) - this.baseline) * 0.01
+      this.baseline += (shaped - this.baseline) * 0.002
     }
 
-    const excess = Math.max(0, shaped - this.baseline * 1.35 - 0.015)
-    const gated = Math.min(1, Math.pow(excess * 3.2, 1.15))
+    const excess = Math.max(0, shaped - this.baseline * 1.08 - 0.004)
+    // Concave curve: small excess → noticeable level
+    const gated = Math.min(1, Math.pow(excess * 7.5, 0.72))
 
-    // Attack fast / release medium — feels like a breath
-    const attack = gated > this.smoothed ? 0.45 : 0.12
+    // Attack very fast / release a bit slower
+    const attack = gated > this.smoothed ? 0.62 : 0.16
     this.smoothed += (gated - this.smoothed) * attack
 
+    // Extra perceptual boost on the output level
+    const level = Math.min(1, Math.pow(this.smoothed, 0.78) * 1.35)
+
     return {
-      level: this.smoothed,
-      blowing: this.smoothed > 0.08,
+      level,
+      blowing: level > 0.03,
       active: true,
     }
   }
