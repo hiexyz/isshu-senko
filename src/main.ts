@@ -51,16 +51,24 @@ function mount(): void {
   const scene = app.querySelector<HTMLElement>('#scene')!
   const canvas = app.querySelector<HTMLCanvasElement>('#smoke')!
   const stick = app.querySelector<HTMLElement>('#stick')!
+  const ember = app.querySelector<HTMLElement>('.ember')!
   const toggle = app.querySelector<HTMLButtonElement>('#lit-toggle')!
 
-  /** Tip = glowing ember center (stick top, nudged up into the ember). */
+  /** Smoke leaves from the visual center of the glowing ember. */
   const getOrigin = () => {
     const sceneRect = scene.getBoundingClientRect()
-    const stickRect = stick.getBoundingClientRect()
+    const emberRect = ember.getBoundingClientRect()
+    // Fallback to stick top if ember is hidden (extinguished layout still keeps element)
+    if (emberRect.width < 1) {
+      const stickRect = stick.getBoundingClientRect()
+      return {
+        x: stickRect.left + stickRect.width / 2 - sceneRect.left,
+        y: stickRect.top - sceneRect.top,
+      }
+    }
     return {
-      x: stickRect.left + stickRect.width / 2 - sceneRect.left,
-      // ember sits slightly above the shaft top
-      y: stickRect.top - sceneRect.top - 3,
+      x: emberRect.left + emberRect.width / 2 - sceneRect.left,
+      y: emberRect.top + emberRect.height / 2 - sceneRect.top,
     }
   }
 
