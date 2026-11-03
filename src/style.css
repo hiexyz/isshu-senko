@@ -257,39 +257,117 @@ button {
   opacity: 0.3;
 }
 
-.durations {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.55rem 1rem;
-  max-width: 22rem;
+.dial-wrap {
+  display: grid;
+  place-items: center;
+  padding-bottom: 0.15rem;
 }
 
-.duration {
+.dial {
+  --dial-deg: 0deg;
+  position: relative;
+  width: min(42vw, 148px);
+  aspect-ratio: 1;
+  touch-action: none;
+  cursor: grab;
+  outline: none;
+  user-select: none;
+}
+
+.dial:active {
+  cursor: grabbing;
+}
+
+.dial:focus-visible {
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(232, 226, 216, 0.35);
+}
+
+.dial__svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.dial__track {
+  fill: none;
+  stroke: rgba(232, 226, 216, 0.14);
+  stroke-width: 2.5;
+}
+
+.dial__arc {
+  fill: none;
+  stroke: rgba(228, 214, 198, 0.45);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  transform-origin: 60px 60px;
+  transform: rotate(-90deg);
+  stroke-dasharray: 0 100;
+  transition: stroke 0.3s ease;
+}
+
+.altar[data-lit='true'] .dial__arc {
+  stroke: rgba(255, 140, 70, 0.42);
+}
+
+.dial__knob {
+  transform-origin: 60px 60px;
+  transition: transform 0.05s linear;
+}
+
+.dial__knob line {
+  stroke: rgba(232, 226, 216, 0.55);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.dial__knob circle {
+  fill: var(--mist);
+  stroke: rgba(40, 28, 18, 0.35);
+  stroke-width: 0.5;
+}
+
+.dial__readout {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  pointer-events: none;
+}
+
+.dial__value {
   font-family: var(--font-display);
-  font-size: clamp(0.78rem, 2vw, 0.9rem);
+  font-size: clamp(1.05rem, 3.2vw, 1.25rem);
+  letter-spacing: 0.12em;
+  color: rgba(232, 226, 216, 0.82);
+}
+
+.dial__caption {
+  margin-top: 0.2rem;
+  font-family: var(--font-body);
+  font-weight: 300;
+  font-size: 0.58rem;
   letter-spacing: 0.18em;
-  text-indent: 0.18em;
-  color: rgba(232, 226, 216, 0.45);
-  padding: 0.2rem 0;
-  border-bottom: 1px solid transparent;
-  transition: color 0.25s ease, border-color 0.25s ease;
+  color: rgba(228, 214, 198, 0.4);
 }
 
-.duration:hover {
-  color: rgba(232, 226, 216, 0.85);
+#sound-toggle[aria-pressed='true'] {
+  color: var(--holder-light);
+  border-color: rgba(228, 214, 198, 0.5);
 }
 
-.duration.is-active {
-  color: var(--mist);
-  border-bottom-color: rgba(232, 226, 216, 0.45);
+#sound-toggle[aria-pressed='false'] {
+  color: rgba(232, 226, 216, 0.4);
+  border-color: rgba(232, 226, 216, 0.18);
 }
 
 .scene {
   position: relative;
   width: min(100%, 360px);
   aspect-ratio: 3 / 4;
-  max-height: min(64dvh, 560px);
+  max-height: min(52dvh, 480px);
   touch-action: none;
 }
 
