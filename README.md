@@ -6,8 +6,8 @@
 
 ## 公開URL
 
+- デプロイナウ: https://isshu-senko.lolipop-now.app/
 - GitHub Pages: https://hiexyz.github.io/isshu-senko/
-- デプロイナウ: https://isshu-senko-timer.lolipop-now.app
 
 ## 機能
 
